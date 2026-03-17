@@ -106,6 +106,48 @@ def set_top_up_waiting_verification(db: Session, *, request: TopUpRequest, refer
     return request
 
 
+def set_bybit_sender_reference(
+    db: Session,
+    *,
+    request: TopUpRequest,
+    sender_uid: str | None = None,
+    external_reference: str | None = None,
+) -> TopUpRequest:
+    if request.method != TopUpMethod.BYBIT_UID:
+        raise TopUpRequestTransitionError(
+            f"Cannot set Bybit sender/reference for method '{request.method.value}', expected '{TopUpMethod.BYBIT_UID.value}'"
+        )
+    if request.status != TopUpStatus.PENDING:
+        raise TopUpRequestTransitionError(
+            f"Cannot set Bybit sender/reference for request in status '{request.status.value}', expected '{TopUpStatus.PENDING.value}'"
+        )
+    if not sender_uid and not external_reference:
+        raise TopUpRequestTransitionError("Cannot set Bybit sender/reference without sender_uid or external_reference")
+
+    ensure_top_up_status_transition(request, TopUpStatus.WAITING_VERIFICATION)
+    request.sender_uid = sender_uid
+    request.external_reference = external_reference
+    request.status = TopUpStatus.WAITING_VERIFICATION
+
+    db.add(
+        ActivityLog(
+            user_id=request.user_id,
+            event_type=LogEventType.TOP_UP_WAITING_VERIFICATION,
+            payload={
+                "top_up_request_id": request.id,
+                "method": request.method.value,
+                "status": request.status.value,
+                "sender_uid": request.sender_uid,
+                "external_reference": request.external_reference,
+            },
+        )
+    )
+
+    db.commit()
+    db.refresh(request)
+    return request
+
+
 def get_top_up_request(db: Session, *, request_id: int, user_id: int) -> TopUpRequest | None:
     return db.scalar(select(TopUpRequest).where(TopUpRequest.id == request_id, TopUpRequest.user_id == user_id))
 

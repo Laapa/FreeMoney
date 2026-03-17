@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from app.db.base import Base
 from app.models.enums import Currency, TopUpMethod, TopUpStatus
 from app.models.user import User
-from app.services.top_up_requests import create_top_up_request, set_top_up_txid
-from app.services.top_up_verification import TopUpVerificationError, verify_crypto_txid_top_up
+from app.services.top_up_requests import create_top_up_request, set_bybit_sender_reference, set_top_up_txid
+from app.services.top_up_verification import TopUpVerificationError, verify_bybit_uid_top_up, verify_crypto_txid_top_up
 
 
 def make_session() -> Session:
@@ -29,6 +29,22 @@ def _create_waiting_verification_request(db: Session, *, telegram_id: int = 9001
         currency=Currency.USD,
     )
     request = set_top_up_txid(db, request=request, txid="abcdef12345")
+    return user, request.id
+
+
+def _create_waiting_verification_bybit_request(db: Session, *, telegram_id: int = 9101) -> tuple[User, int]:
+    user = User(telegram_id=telegram_id, balance=Decimal("10.00"))
+    db.add(user)
+    db.commit()
+
+    request = create_top_up_request(
+        db,
+        user_id=user.id,
+        method=TopUpMethod.BYBIT_UID,
+        amount=Decimal("20.00"),
+        currency=Currency.USD,
+    )
+    request = set_bybit_sender_reference(db, request=request, sender_uid="12345678")
     return user, request.id
 
 
@@ -157,3 +173,69 @@ def test_user_scope_check_blocks_foreign_request() -> None:
 
     assert result.ok is False
     assert result.error == TopUpVerificationError.ACCESS_DENIED
+
+
+def test_verify_bybit_request_credits_balance_once() -> None:
+    db = make_session()
+    user, request_id = _create_waiting_verification_bybit_request(db)
+
+    result = verify_bybit_uid_top_up(db, request_id=request_id, target_status=TopUpStatus.VERIFIED)
+
+    db.refresh(user)
+    assert result.ok is True
+    assert result.request is not None
+    assert result.request.status == TopUpStatus.VERIFIED
+    assert result.request.credited_at is not None
+    assert user.balance == Decimal("30.00")
+
+
+def test_bybit_rejected_request_does_not_credit_balance() -> None:
+    db = make_session()
+    user, request_id = _create_waiting_verification_bybit_request(db)
+
+    result = verify_bybit_uid_top_up(db, request_id=request_id, target_status=TopUpStatus.REJECTED)
+
+    db.refresh(user)
+    assert result.ok is True
+    assert result.request is not None
+    assert result.request.status == TopUpStatus.REJECTED
+    assert result.request.credited_at is None
+    assert user.balance == Decimal("10.00")
+
+
+def test_bybit_expired_request_does_not_credit_balance() -> None:
+    db = make_session()
+    user, request_id = _create_waiting_verification_bybit_request(db)
+
+    result = verify_bybit_uid_top_up(db, request_id=request_id, target_status=TopUpStatus.EXPIRED)
+
+    db.refresh(user)
+    assert result.ok is True
+    assert result.request is not None
+    assert result.request.status == TopUpStatus.EXPIRED
+    assert result.request.credited_at is None
+    assert user.balance == Decimal("10.00")
+
+
+def test_bybit_wrong_method_cannot_use_verification_service() -> None:
+    db = make_session()
+    _, request_id = _create_waiting_verification_request(db)
+
+    result = verify_bybit_uid_top_up(db, request_id=request_id, target_status=TopUpStatus.VERIFIED)
+
+    assert result.ok is False
+    assert result.error == TopUpVerificationError.INVALID_METHOD
+
+
+def test_bybit_duplicate_verification_does_not_double_credit() -> None:
+    db = make_session()
+    user, request_id = _create_waiting_verification_bybit_request(db)
+
+    first = verify_bybit_uid_top_up(db, request_id=request_id, target_status=TopUpStatus.VERIFIED)
+    second = verify_bybit_uid_top_up(db, request_id=request_id, target_status=TopUpStatus.VERIFIED)
+
+    db.refresh(user)
+    assert first.ok is True
+    assert second.ok is False
+    assert second.error == TopUpVerificationError.ALREADY_CREDITED
+    assert user.balance == Decimal("30.00")

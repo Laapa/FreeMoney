@@ -22,6 +22,56 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Раздел товаров скоро будет доступен.",
         Language.EN: "Products section is coming soon.",
     },
+    "products_empty": {
+        Language.RU: "Категории пока не добавлены.",
+        Language.EN: "No categories added yet.",
+    },
+    "products_root_title": {
+        Language.RU: "Выберите категорию:",
+        Language.EN: "Choose a category:",
+    },
+    "products_open_list": {
+        Language.RU: "📋 Открыть товары",
+        Language.EN: "📋 Open products",
+    },
+    "products_back": {Language.RU: "⬅️ Назад", Language.EN: "⬅️ Back"},
+    "products_buy": {Language.RU: "🛒 Купить", Language.EN: "🛒 Buy"},
+    "products_category_not_found": {
+        Language.RU: "Категория не найдена.",
+        Language.EN: "Category not found.",
+    },
+    "products_price_missing": {
+        Language.RU: "цена не задана",
+        Language.EN: "price is not set",
+    },
+    "products_category_view": {
+        Language.RU: "Категория: {title}\nТекущая цена: {price}\nОстаток: {stock}",
+        Language.EN: "Category: {title}\nCurrent price: {price}\nStock: {stock}",
+    },
+    "products_list_title": {
+        Language.RU: "Товары в категории: {title}",
+        Language.EN: "Products in category: {title}",
+    },
+    "products_price_line": {
+        Language.RU: "Цена: {price}",
+        Language.EN: "Price: {price}",
+    },
+    "products_stock_line": {
+        Language.RU: "Доступно: {stock}",
+        Language.EN: "Available: {stock}",
+    },
+    "products_no_stock": {
+        Language.RU: "Нет доступных товаров в наличии.",
+        Language.EN: "No products available in stock.",
+    },
+    "products_reservation_success": {
+        Language.RU: "Резерв создан ✅\nКатегория: {title}\nReservation ID: {reservation_id}\nOrder ID: {order_id}\nЦена: {price}\n\nСледующий шаг: оплата (будет добавлена на следующем этапе).",
+        Language.EN: "Reservation created ✅\nCategory: {title}\nReservation ID: {reservation_id}\nOrder ID: {order_id}\nPrice: {price}\n\nNext step: payment (placeholder for next iteration).",
+    },
+    "products_reserved_toast": {
+        Language.RU: "Товар зарезервирован",
+        Language.EN: "Product reserved",
+    },
     "top_up_placeholder": {
         Language.RU: "Пополнение будет добавлено на следующем этапе.",
         Language.EN: "Top up will be added in the next step.",

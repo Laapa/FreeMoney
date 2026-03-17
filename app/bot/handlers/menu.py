@@ -2,6 +2,7 @@ from aiogram import F, Router
 from aiogram.types import Message
 
 from app.bot.i18n import t
+from app.bot.handlers.products import show_root_categories
 from app.bot.keyboards.main_menu import MENU_KEYS, main_menu_keyboard, menu_key_by_text
 from app.db.session import SessionLocal
 from app.services.orders import list_user_orders
@@ -58,8 +59,11 @@ async def menu_handler(message: Message) -> None:
             await message.answer("\n".join(lines), reply_markup=main_menu_keyboard(user.language))
             return
 
+        if key == "menu_products":
+            await show_root_categories(message)
+            return
+
         placeholders = {
-            "menu_products": "products_placeholder",
             "menu_top_up": "top_up_placeholder",
             "menu_rules": "rules_placeholder",
             "menu_support": "support_placeholder",

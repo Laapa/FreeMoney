@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import Numeric, create_engine, select
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,8 @@ from app.models.enums import Currency, LogEventType, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
 from app.models.user import User
 from app.services.top_up_requests import create_top_up_request, set_top_up_txid, set_top_up_waiting_verification
+from app.services.top_up_statuses import TopUpRequestTransitionError
+from app.services.top_up_verification import verify_crypto_txid_top_up
 
 
 def make_session() -> Session:
@@ -81,3 +84,61 @@ def test_bybit_top_up_can_be_marked_waiting_verification() -> None:
 
     assert request.status == TopUpStatus.WAITING_VERIFICATION
     assert request.external_reference == "bybit_uid_payment"
+
+
+def test_set_top_up_txid_rejects_wrong_method() -> None:
+    db = make_session()
+    user = User(telegram_id=780)
+    db.add(user)
+    db.commit()
+
+    request = create_top_up_request(
+        db,
+        user_id=user.id,
+        method=TopUpMethod.BYBIT_UID,
+        amount=Decimal("10.00"),
+        currency=Currency.USD,
+    )
+
+    with pytest.raises(TopUpRequestTransitionError, match="Cannot set txid for method"):
+        set_top_up_txid(db, request=request, txid="abc123txid")
+
+
+def test_set_top_up_txid_rejects_wrong_status() -> None:
+    db = make_session()
+    user = User(telegram_id=781)
+    db.add(user)
+    db.commit()
+
+    request = create_top_up_request(
+        db,
+        user_id=user.id,
+        method=TopUpMethod.CRYPTO_TXID,
+        amount=Decimal("10.00"),
+        currency=Currency.USD,
+    )
+    request = set_top_up_txid(db, request=request, txid="abc123txid")
+
+    with pytest.raises(TopUpRequestTransitionError, match="Cannot set txid for request in status"):
+        set_top_up_txid(db, request=request, txid="newtxid123")
+
+
+def test_txid_cannot_be_changed_after_verified() -> None:
+    db = make_session()
+    user = User(telegram_id=782)
+    db.add(user)
+    db.commit()
+
+    request = create_top_up_request(
+        db,
+        user_id=user.id,
+        method=TopUpMethod.CRYPTO_TXID,
+        amount=Decimal("10.00"),
+        currency=Currency.USD,
+    )
+    request = set_top_up_txid(db, request=request, txid="abc123txid")
+    verify_crypto_txid_top_up(db, request_id=request.id, target_status=TopUpStatus.VERIFIED)
+    db.refresh(request)
+
+    with pytest.raises(TopUpRequestTransitionError, match="Cannot set txid for request in status"):
+        set_top_up_txid(db, request=request, txid="newtxid123")

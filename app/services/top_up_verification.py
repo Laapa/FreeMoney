@@ -3,12 +3,14 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.activity_log import ActivityLog
 from app.models.enums import LogEventType, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
 from app.models.user import User
+from app.services.top_up_statuses import TopUpRequestTransitionError, ensure_top_up_status_transition
 
 
 class TopUpVerificationError(str, Enum):
@@ -18,6 +20,7 @@ class TopUpVerificationError(str, Enum):
     TXID_MISSING = "txid_missing"
     INVALID_SOURCE_STATUS = "invalid_source_status"
     INVALID_TARGET_STATUS = "invalid_target_status"
+    ALREADY_CREDITED = "already_credited"
 
 
 @dataclass(frozen=True)
@@ -42,7 +45,10 @@ def verify_crypto_txid_top_up(
     reviewed_by_user_id: int | None = None,
     verification_note: str | None = None,
 ) -> TopUpVerificationResult:
-    request = db.get(TopUpRequest, request_id)
+    if target_status not in _ALLOWED_TARGET_STATUSES:
+        return TopUpVerificationResult(ok=False, error=TopUpVerificationError.INVALID_TARGET_STATUS)
+
+    request = db.scalar(select(TopUpRequest).where(TopUpRequest.id == request_id).with_for_update())
     if request is None:
         return TopUpVerificationResult(ok=False, error=TopUpVerificationError.REQUEST_NOT_FOUND)
 
@@ -55,10 +61,12 @@ def verify_crypto_txid_top_up(
     if not request.txid:
         return TopUpVerificationResult(ok=False, request=request, error=TopUpVerificationError.TXID_MISSING)
 
-    if target_status not in _ALLOWED_TARGET_STATUSES:
-        return TopUpVerificationResult(ok=False, request=request, error=TopUpVerificationError.INVALID_TARGET_STATUS)
+    if target_status == TopUpStatus.VERIFIED and request.credited_at is not None:
+        return TopUpVerificationResult(ok=False, request=request, error=TopUpVerificationError.ALREADY_CREDITED)
 
-    if request.status != TopUpStatus.WAITING_VERIFICATION:
+    try:
+        ensure_top_up_status_transition(request, target_status)
+    except TopUpRequestTransitionError:
         return TopUpVerificationResult(ok=False, request=request, error=TopUpVerificationError.INVALID_SOURCE_STATUS)
 
     now = datetime.utcnow()
@@ -68,7 +76,7 @@ def verify_crypto_txid_top_up(
 
     event_type = LogEventType.TOP_UP_VERIFIED
     if target_status == TopUpStatus.VERIFIED:
-        user = db.get(User, request.user_id)
+        user = db.scalar(select(User).where(User.id == request.user_id).with_for_update())
         if user is None:
             return TopUpVerificationResult(ok=False, request=request, error=TopUpVerificationError.REQUEST_NOT_FOUND)
         user.balance = _money(user.balance) + _money(request.amount)
@@ -96,6 +104,7 @@ def verify_crypto_txid_top_up(
     )
 
     db.commit()
+
     db.refresh(request)
     return TopUpVerificationResult(ok=True, request=request)
 

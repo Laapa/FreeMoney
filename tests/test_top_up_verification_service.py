@@ -16,8 +16,8 @@ def make_session() -> Session:
     return Session(bind=engine)
 
 
-def _create_waiting_verification_request(db: Session) -> tuple[User, int]:
-    user = User(telegram_id=9001, balance=Decimal("10.00"))
+def _create_waiting_verification_request(db: Session, *, telegram_id: int = 9001) -> tuple[User, int]:
+    user = User(telegram_id=telegram_id, balance=Decimal("10.00"))
     db.add(user)
     db.commit()
 
@@ -104,8 +104,44 @@ def test_duplicate_verification_does_not_double_credit_balance() -> None:
     db.refresh(user)
     assert first.ok is True
     assert second.ok is False
-    assert second.error == TopUpVerificationError.INVALID_SOURCE_STATUS
+    assert second.error == TopUpVerificationError.ALREADY_CREDITED
     assert user.balance == Decimal("35.00")
+
+
+def test_verified_request_cannot_be_rejected_or_expired_later() -> None:
+    db = make_session()
+    _, request_id = _create_waiting_verification_request(db)
+
+    verified = verify_crypto_txid_top_up(db, request_id=request_id, target_status=TopUpStatus.VERIFIED)
+    rejected = verify_crypto_txid_top_up(db, request_id=request_id, target_status=TopUpStatus.REJECTED)
+    expired = verify_crypto_txid_top_up(db, request_id=request_id, target_status=TopUpStatus.EXPIRED)
+
+    assert verified.ok is True
+    assert rejected.ok is False
+    assert rejected.error == TopUpVerificationError.INVALID_SOURCE_STATUS
+    assert expired.ok is False
+    assert expired.error == TopUpVerificationError.INVALID_SOURCE_STATUS
+
+
+def test_rejected_or_expired_cannot_become_verified() -> None:
+    db = make_session()
+    _, rejected_request_id = _create_waiting_verification_request(db, telegram_id=9010)
+    _, expired_request_id = _create_waiting_verification_request(db, telegram_id=9011)
+
+    rejected = verify_crypto_txid_top_up(db, request_id=rejected_request_id, target_status=TopUpStatus.REJECTED)
+    rejected_then_verified = verify_crypto_txid_top_up(
+        db, request_id=rejected_request_id, target_status=TopUpStatus.VERIFIED
+    )
+
+    expired = verify_crypto_txid_top_up(db, request_id=expired_request_id, target_status=TopUpStatus.EXPIRED)
+    expired_then_verified = verify_crypto_txid_top_up(db, request_id=expired_request_id, target_status=TopUpStatus.VERIFIED)
+
+    assert rejected.ok is True
+    assert rejected_then_verified.ok is False
+    assert rejected_then_verified.error == TopUpVerificationError.INVALID_SOURCE_STATUS
+    assert expired.ok is True
+    assert expired_then_verified.ok is False
+    assert expired_then_verified.error == TopUpVerificationError.INVALID_SOURCE_STATUS
 
 
 def test_user_scope_check_blocks_foreign_request() -> None:

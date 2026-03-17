@@ -18,6 +18,11 @@ Backend foundation for a Telegram shop bot MVP.
   - `activity_logs` (for reservation/payment/sale/delivery events)
 - Status enums for business workflows.
 - Reservation/purchase service foundation:
+  - reserve one available item in category with retry across candidates on conflict
+  - create reservation with TTL and linked order
+  - release expired reservations and cancel pending orders
+  - apply payment success/failure transitions consistently
+  - complete auto-delivery by storing delivered payload and marking order delivered
   - reserve one available item in category
   - create reservation with TTL and linked order
   - release expired reservations and cancel pending orders
@@ -30,6 +35,9 @@ Backend foundation for a Telegram shop bot MVP.
 1. Money fields now use `Numeric(12,2)` / `Decimal` (`users.balance`, `orders.price`, `payments.amount`, `user_category_prices.price`) to avoid floating-point rounding issues in financial logic.
 2. `orders` now has `reservation_id` (unique FK) to explicitly bind each order to reservation flow.
 3. Reservation expiry flow updates related order status to `canceled` when still pending.
+4. Removed unique constraint from `orders.product_id` so one product can appear in multiple historical orders (e.g., failed payment then later successful purchase); unique constraint on `orders.reservation_id` is kept.
+5. Added delivery fields to `orders`: `delivered_payload` and `delivered_at` to persist auto-delivery result and completion timestamp.
+6. Payment success now follows paid->delivered completion flow with `DELIVERY_COMPLETED` log; failed/expired payments consistently cancel reservation/order and release product back to `available`.
 4. Payment transitions now update reservation/order/product in one consistent service path.
 - Alembic migration scaffolding + initial migration.
 - Minimal tests with `pytest` for core reservation/payment behavior.

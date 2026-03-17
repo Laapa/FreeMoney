@@ -87,6 +87,8 @@ def upgrade() -> None:
         sa.Column("reservation_id", sa.Integer(), nullable=False),
         sa.Column("price", sa.Numeric(precision=12, scale=2), nullable=False),
         sa.Column("status", sa.Enum("PENDING", "PAID", "DELIVERED", "CANCELED", name="orderstatus"), nullable=False),
+        sa.Column("delivered_payload", sa.Text(), nullable=True),
+        sa.Column("delivered_at", sa.DateTime(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(["product_id"], ["products_pool.id"]),
         sa.ForeignKeyConstraint(["reservation_id"], ["reservations.id"]),

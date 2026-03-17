@@ -36,6 +36,11 @@ def reserve_product_for_user(
     price: Decimal,
     ttl_minutes: int = 15,
     now: datetime | None = None,
+    max_attempts: int = 5,
+) -> ReservationAttemptResult:
+    current_time = now or datetime.utcnow()
+
+    candidate_ids = db.scalars(
 ) -> ReservationAttemptResult:
     current_time = now or datetime.utcnow()
 
@@ -46,6 +51,39 @@ def reserve_product_for_user(
             ProductPool.status == ProductStatus.AVAILABLE,
         )
         .order_by(ProductPool.id)
+        .limit(max_attempts)
+    ).all()
+
+    if not candidate_ids:
+        return ReservationAttemptResult(ok=False, reason="no_stock_available")
+
+    reserved_product_id: int | None = None
+    had_conflict = False
+
+    for candidate_id in candidate_ids:
+        update_result = db.execute(
+            update(ProductPool)
+            .where(
+                ProductPool.id == candidate_id,
+                ProductPool.status == ProductStatus.AVAILABLE,
+            )
+            .values(status=ProductStatus.RESERVED)
+        )
+        if update_result.rowcount == 1:
+            reserved_product_id = candidate_id
+            break
+        had_conflict = True
+
+    if reserved_product_id is None:
+        db.rollback()
+        return ReservationAttemptResult(
+            ok=False,
+            reason="reservation_conflict" if had_conflict else "no_stock_available",
+        )
+
+    reservation = Reservation(
+        user_id=user_id,
+        product_id=reserved_product_id,
         .limit(1)
     )
 
@@ -77,16 +115,21 @@ def reserve_product_for_user(
 
     order = Order(
         user_id=user_id,
+        product_id=reserved_product_id,
         product_id=candidate_id,
         reservation_id=reservation.id,
         price=price,
         status=OrderStatus.PENDING,
     )
     db.add(order)
+    db.flush()
     db.add(
         ActivityLog(
             user_id=user_id,
             reservation_id=reservation.id,
+            order_id=order.id,
+            event_type=LogEventType.RESERVATION_CREATED,
+            payload={"product_id": reserved_product_id, "category_id": category_id},
             event_type=LogEventType.RESERVATION_CREATED,
             payload={"product_id": candidate_id, "category_id": category_id},
         )
@@ -136,12 +179,24 @@ def apply_payment_status(db: Session, payment: Payment, new_status: PaymentStatu
         order.status = OrderStatus.PAID
         reservation.status = ReservationStatus.CONVERTED
         order.product.status = ProductStatus.SOLD
+        order.delivered_payload = order.product.payload
+        order.delivered_at = datetime.utcnow()
+        order.status = OrderStatus.DELIVERED
         db.add(
             ActivityLog(
                 user_id=order.user_id,
                 order_id=order.id,
                 reservation_id=reservation.id,
                 event_type=LogEventType.SALE_COMPLETED,
+                payload={"product_id": order.product_id, "payment_id": payment.id},
+            )
+        )
+        db.add(
+            ActivityLog(
+                user_id=order.user_id,
+                order_id=order.id,
+                reservation_id=reservation.id,
+                event_type=LogEventType.DELIVERY_COMPLETED,
                 payload={"product_id": order.product_id, "payment_id": payment.id},
             )
         )

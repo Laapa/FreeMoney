@@ -92,6 +92,13 @@ def test_reservation_expiry_releases_product_and_cancels_order() -> None:
     assert product.status == ProductStatus.AVAILABLE
 
 
+def test_successful_payment_marks_order_delivered_and_product_sold() -> None:
+    db = make_session()
+    user, category = seed_user_category(db)
+    db.add(ProductPool(category_id=category.id, payload="secret-item", status=ProductStatus.AVAILABLE))
+    db.commit()
+
+    result = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("11.00"))
 def test_successful_payment_marks_entities_consistently() -> None:
     db = make_session()
     user, category = seed_user_category(db)
@@ -104,6 +111,21 @@ def test_successful_payment_marks_entities_consistently() -> None:
     db.commit()
 
     apply_payment_status(db, payment, PaymentStatus.SUCCESS)
+
+    db.refresh(result.reservation)
+    db.refresh(result.order)
+    product = db.get(ProductPool, result.reservation.product_id)
+    logs = db.scalars(select(ActivityLog).where(ActivityLog.order_id == result.order.id)).all()
+
+    assert result.reservation.status == ReservationStatus.CONVERTED
+    assert result.order.status == OrderStatus.DELIVERED
+    assert result.order.delivered_payload == "secret-item"
+    assert result.order.delivered_at is not None
+    assert product.status == ProductStatus.SOLD
+    assert any(log.event_type == LogEventType.DELIVERY_COMPLETED for log in logs)
+
+
+def test_failed_payment_releases_product_and_allows_reorder() -> None:
     db.refresh(result.reservation)
     db.refresh(result.order)
     product = db.get(ProductPool, result.reservation.product_id)
@@ -118,6 +140,9 @@ def test_failed_payment_releases_product_and_cancels_flow() -> None:
     user, category = seed_user_category(db)
     db.add(ProductPool(category_id=category.id, payload="item-1", status=ProductStatus.AVAILABLE))
     db.commit()
+
+    first_attempt = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("11.00"))
+    payment = Payment(order_id=first_attempt.order.id, amount=Decimal("11.00"), status=PaymentStatus.PENDING)
     result = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("11.00"))
 
     payment = Payment(order_id=result.order.id, amount=Decimal("11.00"), status=PaymentStatus.PENDING)
@@ -125,6 +150,52 @@ def test_failed_payment_releases_product_and_cancels_flow() -> None:
     db.commit()
 
     apply_payment_status(db, payment, PaymentStatus.FAILED)
+
+    db.refresh(first_attempt.reservation)
+    db.refresh(first_attempt.order)
+    product = db.get(ProductPool, first_attempt.reservation.product_id)
+
+    assert first_attempt.reservation.status == ReservationStatus.CANCELED
+    assert first_attempt.order.status == OrderStatus.CANCELED
+    assert product.status == ProductStatus.AVAILABLE
+
+    second_attempt = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("11.00"))
+    assert second_attempt.ok is True
+    assert second_attempt.order.product_id == first_attempt.order.product_id
+
+
+def test_reservation_retry_uses_next_candidate_after_conflict() -> None:
+    db = make_session()
+    user, category = seed_user_category(db)
+    db.add_all(
+        [
+            ProductPool(category_id=category.id, payload="item-1", status=ProductStatus.AVAILABLE),
+            ProductPool(category_id=category.id, payload="item-2", status=ProductStatus.AVAILABLE),
+        ]
+    )
+    db.commit()
+
+    original_execute = db.execute
+    calls = {"count": 0}
+
+    def flaky_execute(*args, **kwargs):
+        result = original_execute(*args, **kwargs)
+        statement = args[0] if args else kwargs.get("statement")
+        if hasattr(statement, "table") and getattr(statement.table, "name", None) == "products_pool":
+            calls["count"] += 1
+            if calls["count"] == 1:
+                class FakeResult:
+                    rowcount = 0
+
+                return FakeResult()
+        return result
+
+    db.execute = flaky_execute
+    result = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("8.00"))
+
+    assert result.ok is True
+    assert result.order is not None
+    assert result.order.product_id == 2
     db.refresh(result.reservation)
     db.refresh(result.order)
     product = db.get(ProductPool, result.reservation.product_id)

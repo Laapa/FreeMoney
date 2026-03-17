@@ -2,8 +2,6 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import DateTime, Enum, Integer, Numeric, String
-
-from sqlalchemy import DateTime, Enum, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -19,7 +17,6 @@ class User(Base):
     language: Mapped[Language] = mapped_column(Enum(Language), default=Language.RU, nullable=False)
     currency: Mapped[Currency] = mapped_column(Enum(Currency), default=Currency.RUB, nullable=False)
     balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)
-    balance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     orders = relationship("Order", back_populates="user")

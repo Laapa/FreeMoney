@@ -23,8 +23,14 @@ Backend foundation for a Telegram shop bot MVP.
   - release expired reservations and cancel pending orders
   - apply payment success/failure transitions consistently
   - complete auto-delivery by storing delivered payload and marking order delivered
+- Telegram bot foundation with modular aiogram routers:
+  - bot polling entrypoint
+  - `/start` user initialization flow
+  - RU/EN text helper and main menu keyboard
+  - profile and orders handlers backed by database data
+  - placeholder handlers for Products / Top Up / Rules / Support
 - Alembic migration scaffolding + initial migration.
-- Tests for reservation and payment flows.
+- Tests for reservation and payment flows plus user service checks.
 
 ## Schema changes and rationale
 
@@ -39,6 +45,15 @@ Backend foundation for a Telegram shop bot MVP.
 
 ```text
 app/
+  bot/
+    handlers/
+      menu.py
+      start.py
+    keyboards/
+      main_menu.py
+    i18n.py
+    main.py
+    router.py
   core/
     config.py
   db/
@@ -50,6 +65,8 @@ app/
     purchase.py
     reservations.py
     payments.py
+    orders.py
+    users.py
   main.py
 alembic/
   env.py
@@ -57,6 +74,7 @@ alembic/
     0001_initial_schema.py
 tests/
   test_models_and_services.py
+  test_user_services.py
 ```
 
 ## Quick start
@@ -75,6 +93,7 @@ Defaults are development-friendly; override with `.env`:
 
 ```env
 DATABASE_URL=sqlite:///./freemoney.db
+TELEGRAM_BOT_TOKEN=your_bot_token_here
 ```
 
 ### 3) Run migrations
@@ -95,7 +114,15 @@ Health endpoint:
 curl http://127.0.0.1:8000/health
 ```
 
-### 5) Run tests
+### 5) Run Telegram bot polling
+
+```bash
+python -m app.bot.main
+```
+
+This starts aiogram polling with routers from `app/bot/router.py`.
+
+### 6) Run tests
 
 ```bash
 pytest
@@ -107,4 +134,3 @@ pytest
 - Expired reservations are released by `release_expired_reservations()`.
 - Failed/expired payments return products to `available` via `apply_payment_status()`.
 - Sales/reservations/payment failures are logged in `activity_logs`.
-

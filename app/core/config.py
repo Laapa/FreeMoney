@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     app_name: str = "FreeMoney Backend"
     app_env: str = "dev"
     database_url: str = Field(default="sqlite:///./freemoney.db", alias="DATABASE_URL")
+    telegram_bot_token: str | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
 
 
 @lru_cache(maxsize=1)

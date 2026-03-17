@@ -120,9 +120,58 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Товар зарезервирован",
         Language.EN: "Product reserved",
     },
-    "top_up_placeholder": {
-        Language.RU: "Пополнение будет добавлено на следующем этапе.",
-        Language.EN: "Top up will be added in the next step.",
+    "top_up_main": {
+        Language.RU: "💳 Пополнение\n\nТекущий баланс: {balance} {currency}\nВыберите способ пополнения:",
+        Language.EN: "💳 Top Up\n\nCurrent balance: {balance} {currency}\nChoose a top-up method:",
+    },
+    "top_up_method_crypto": {Language.RU: "🧾 Crypto by TXID", Language.EN: "🧾 Crypto by TXID"},
+    "top_up_method_bybit": {Language.RU: "🏦 Bybit UID", Language.EN: "🏦 Bybit UID"},
+    "top_up_cancel": {Language.RU: "❌ Отменить", Language.EN: "❌ Cancel"},
+    "top_up_crypto_intro": {
+        Language.RU: "Отправьте перевод и укажите TXID. Сначала выберите сеть/токен:",
+        Language.EN: "Send a transfer and provide TXID. First choose network/token:",
+    },
+    "top_up_network_trc20": {Language.RU: "USDT TRC20", Language.EN: "USDT TRC20"},
+    "top_up_network_erc20": {Language.RU: "USDT ERC20", Language.EN: "USDT ERC20"},
+    "top_up_network_invalid": {
+        Language.RU: "Выберите сеть из кнопок ниже.",
+        Language.EN: "Please choose a network from the buttons below.",
+    },
+    "top_up_enter_amount": {
+        Language.RU: "Введите сумму пополнения (например, 1000 или 25.50):",
+        Language.EN: "Enter top-up amount (for example, 1000 or 25.50):",
+    },
+    "top_up_amount_invalid": {
+        Language.RU: "Некорректная сумма. Укажите число больше 0 с точностью до 2 знаков.",
+        Language.EN: "Invalid amount. Enter a number greater than 0 with up to 2 decimal places.",
+    },
+    "top_up_request_summary": {
+        Language.RU: "Заявка на пополнение создана ✅\nID: #{id}\nМетод: {method}\nСумма: {amount} {currency}\nСтатус: {status}\nПримечание: {note}",
+        Language.EN: "Top-up request created ✅\nID: #{id}\nMethod: {method}\nAmount: {amount} {currency}\nStatus: {status}\nNote: {note}",
+    },
+    "top_up_enter_txid": {
+        Language.RU: "Теперь отправьте TXID транзакции.",
+        Language.EN: "Now send the transaction TXID.",
+    },
+    "top_up_txid_invalid": {
+        Language.RU: "Некорректный TXID. Укажите строку без пробелов (минимум 8 символов).",
+        Language.EN: "Invalid TXID. Enter a string without spaces (at least 8 characters).",
+    },
+    "top_up_request_not_found": {
+        Language.RU: "Заявка не найдена. Попробуйте начать заново.",
+        Language.EN: "Request not found. Please start again.",
+    },
+    "top_up_waiting_verification": {
+        Language.RU: "Заявка #{id} переведена в статус {status}. Проверка платежа будет добавлена позже.",
+        Language.EN: "Request #{id} is now in {status} status. Payment verification will be implemented later.",
+    },
+    "top_up_bybit_intro": {
+        Language.RU: "Пополнение через Bybit UID. Введите сумму, и мы создадим заявку.",
+        Language.EN: "Top up via Bybit UID. Enter the amount and we will create a request.",
+    },
+    "top_up_bybit_instructions": {
+        Language.RU: "Инструкция (заглушка): отправьте перевод на наш Bybit UID. Подтверждение будет добавлено позже.",
+        Language.EN: "Instructions (placeholder): send transfer to our Bybit UID. Verification will be added later.",
     },
     "rules_placeholder": {
         Language.RU: "Правила будут опубликованы здесь.",

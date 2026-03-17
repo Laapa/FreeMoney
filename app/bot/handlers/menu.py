@@ -143,10 +143,11 @@ async def menu_handler(message: Message) -> None:
         return
 
     placeholders = {
-        "menu_top_up": "top_up_placeholder",
         "menu_rules": "rules_placeholder",
         "menu_support": "support_placeholder",
     }
+    if key == "menu_top_up":
+        return
     await message.answer(t(placeholders[key], user.language), reply_markup=main_menu_keyboard(user.language))
 
 

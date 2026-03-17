@@ -1,0 +1,39 @@
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+
+from app.bot.i18n import t
+from app.models.enums import Language
+
+TOP_UP_METHOD_CRYPTO = "top_up_method_crypto"
+TOP_UP_METHOD_BYBIT = "top_up_method_bybit"
+TOP_UP_CANCEL = "top_up_cancel"
+
+
+def top_up_main_keyboard(language: Language) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=t(TOP_UP_METHOD_CRYPTO, language)), KeyboardButton(text=t(TOP_UP_METHOD_BYBIT, language))],
+            [KeyboardButton(text=t("nav_back", language)), KeyboardButton(text=t("nav_main_menu", language))],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def top_up_cancel_keyboard(language: Language) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=t(TOP_UP_CANCEL, language))],
+            [KeyboardButton(text=t("nav_back", language)), KeyboardButton(text=t("nav_main_menu", language))],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def top_up_network_keyboard(language: Language) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=t("top_up_network_trc20", language)), KeyboardButton(text=t("top_up_network_erc20", language))],
+            [KeyboardButton(text=t(TOP_UP_CANCEL, language))],
+            [KeyboardButton(text=t("nav_back", language)), KeyboardButton(text=t("nav_main_menu", language))],
+        ],
+        resize_keyboard=True,
+    )

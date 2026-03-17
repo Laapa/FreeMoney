@@ -17,6 +17,20 @@ Backend foundation for a Telegram shop bot MVP.
   - `user_category_prices`
   - `activity_logs` (for reservation/payment/sale/delivery events)
 - Status enums for business workflows.
+- Reservation/purchase service foundation:
+  - reserve one available item in category
+  - create reservation with TTL and linked order
+  - release expired reservations and cancel pending orders
+  - apply payment success/failure transitions consistently
+- Alembic migration scaffolding + initial migration.
+- Tests for reservation and payment flows.
+
+## Schema changes and rationale
+
+1. Money fields now use `Numeric(12,2)` / `Decimal` (`users.balance`, `orders.price`, `payments.amount`, `user_category_prices.price`) to avoid floating-point rounding issues in financial logic.
+2. `orders` now has `reservation_id` (unique FK) to explicitly bind each order to reservation flow.
+3. Reservation expiry flow updates related order status to `canceled` when still pending.
+4. Payment transitions now update reservation/order/product in one consistent service path.
 - Alembic migration scaffolding + initial migration.
 - Minimal tests with `pytest` for core reservation/payment behavior.
 
@@ -32,6 +46,7 @@ app/
   models/
     *.py
   services/
+    purchase.py
     reservations.py
     payments.py
   main.py

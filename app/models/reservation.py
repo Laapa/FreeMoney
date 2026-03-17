@@ -19,3 +19,4 @@ class Reservation(Base):
 
     user = relationship("User", back_populates="reservations")
     product = relationship("ProductPool", back_populates="reservations")
+    order = relationship("Order", back_populates="reservation", uselist=False)

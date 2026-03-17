@@ -6,6 +6,12 @@ from app.services.catalog import CategoryView
 
 
 CALLBACK_ROOT = "prod:root"
+CALLBACK_MENU = "prod:menu"
+CALLBACK_TOP_UP = "prod:topup"
+
+
+def top_up_callback(category_id: int) -> str:
+    return f"{CALLBACK_TOP_UP}:{category_id}"
 
 
 def category_callback(category_id: int) -> str:
@@ -32,12 +38,13 @@ def categories_keyboard(categories: list[CategoryView], language: Language) -> I
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"{category.title} ({category.stock_count})",
+                    text=f"📁 {category.title} · {category.stock_count}",
                     callback_data=category_callback(category.id),
                 )
             ]
         )
 
+    rows.append([InlineKeyboardButton(text=t("products_main_menu", language), callback_data=CALLBACK_MENU)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -53,14 +60,19 @@ def category_view_keyboard(
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"{subcategory.title} ({subcategory.stock_count})",
+                    text=f"📁 {subcategory.title} · {subcategory.stock_count}",
                     callback_data=category_callback(subcategory.id),
                 )
             ]
         )
 
     rows.append([InlineKeyboardButton(text=t("products_open_list", language), callback_data=products_callback(category.id))])
-    rows.append([InlineKeyboardButton(text=t("products_back", language), callback_data=back_callback(category.parent_id))])
+    rows.append(
+        [
+            InlineKeyboardButton(text=t("products_back", language), callback_data=back_callback(category.parent_id)),
+            InlineKeyboardButton(text=t("products_main_menu", language), callback_data=CALLBACK_MENU),
+        ]
+    )
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -70,6 +82,30 @@ def product_list_keyboard(*, category: CategoryView, can_buy: bool, language: La
     if can_buy:
         rows.append([InlineKeyboardButton(text=t("products_buy", language), callback_data=buy_callback(category.id))])
 
-    rows.append([InlineKeyboardButton(text=t("products_back", language), callback_data=category_callback(category.id))])
+    rows.append(
+        [
+            InlineKeyboardButton(text=t("products_back_to_category", language), callback_data=category_callback(category.id)),
+            InlineKeyboardButton(text=t("products_main_menu", language), callback_data=CALLBACK_MENU),
+        ]
+    )
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def reservation_success_keyboard(*, category_id: int, language: Language) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t("products_back_to_products", language), callback_data=products_callback(category_id))],
+            [InlineKeyboardButton(text=t("menu_top_up", language), callback_data=top_up_callback(category_id))],
+            [InlineKeyboardButton(text=t("products_main_menu", language), callback_data=CALLBACK_MENU)],
+        ]
+    )
+
+
+def top_up_placeholder_keyboard(*, category_id: int, language: Language) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t("products_back_to_products", language), callback_data=products_callback(category_id))],
+            [InlineKeyboardButton(text=t("products_main_menu", language), callback_data=CALLBACK_MENU)],
+        ]
+    )

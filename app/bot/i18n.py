@@ -31,10 +31,13 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Choose a category:",
     },
     "products_open_list": {
-        Language.RU: "📋 Открыть товары",
-        Language.EN: "📋 Open products",
+        Language.RU: "📋 Показать товары",
+        Language.EN: "📋 Show products",
     },
     "products_back": {Language.RU: "⬅️ Назад", Language.EN: "⬅️ Back"},
+    "products_main_menu": {Language.RU: "🏠 Главное меню", Language.EN: "🏠 Main menu"},
+    "products_back_to_category": {Language.RU: "⬅️ К категории", Language.EN: "⬅️ Category"},
+    "products_back_to_products": {Language.RU: "⬅️ К товарам", Language.EN: "⬅️ Back to products"},
     "products_buy": {Language.RU: "🛒 Купить", Language.EN: "🛒 Buy"},
     "products_category_not_found": {
         Language.RU: "Категория не найдена.",
@@ -45,12 +48,16 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "price is not set",
     },
     "products_category_view": {
-        Language.RU: "Категория: {title}\nТекущая цена: {price}\nОстаток: {stock}",
-        Language.EN: "Category: {title}\nCurrent price: {price}\nStock: {stock}",
+        Language.RU: "Категория: {title}\nПуть: {breadcrumb}\nТекущая цена: {price}\nОстаток: {stock}",
+        Language.EN: "Category: {title}\nPath: {breadcrumb}\nCurrent price: {price}\nStock: {stock}",
     },
     "products_list_title": {
         Language.RU: "Товары в категории: {title}",
         Language.EN: "Products in category: {title}",
+    },
+    "products_breadcrumb_line": {
+        Language.RU: "Путь: {path}",
+        Language.EN: "Path: {path}",
     },
     "products_price_line": {
         Language.RU: "Цена: {price}",
@@ -63,6 +70,10 @@ TEXTS: dict[str, dict[Language, str]] = {
     "products_no_stock": {
         Language.RU: "Нет доступных товаров в наличии.",
         Language.EN: "No products available in stock.",
+    },
+    "products_card_line": {
+        Language.RU: "{idx}. Товар #{product_id} · цена {price}",
+        Language.EN: "{idx}. Product #{product_id} · price {price}",
     },
     "products_reservation_success": {
         Language.RU: "Резерв создан ✅\nКатегория: {title}\nReservation ID: {reservation_id}\nOrder ID: {order_id}\nЦена: {price}\n\nСледующий шаг: оплата (будет добавлена на следующем этапе).",

@@ -23,7 +23,8 @@ def test_list_categories_supports_hierarchy_and_stock() -> None:
     user = User(telegram_id=1, language=Language.EN)
     root = Category(name_ru="Игры", name_en="Games")
     child = Category(name_ru="Steam", name_en="Steam", parent=root)
-    db.add_all([user, root, child])
+    deep = Category(name_ru="EU", name_en="EU", parent=child)
+    db.add_all([user, root, child, deep])
     db.flush()
     db.add_all(
         [
@@ -31,6 +32,7 @@ def test_list_categories_supports_hierarchy_and_stock() -> None:
             UserCategoryPrice(user_id=user.id, category_id=child.id, price=Decimal("15.00")),
             ProductPool(category_id=root.id, payload="r1", status=ProductStatus.AVAILABLE),
             ProductPool(category_id=child.id, payload="c1", status=ProductStatus.AVAILABLE),
+            ProductPool(category_id=deep.id, payload="d1", status=ProductStatus.AVAILABLE),
             ProductPool(category_id=child.id, payload="c2", status=ProductStatus.RESERVED),
         ]
     )
@@ -39,13 +41,13 @@ def test_list_categories_supports_hierarchy_and_stock() -> None:
     roots = list_categories(db, user_id=user.id, language=Language.EN, parent_id=None)
     assert len(roots) == 1
     assert roots[0].title == "Games"
-    assert roots[0].stock_count == 1
+    assert roots[0].stock_count == 3
     assert roots[0].has_children is True
 
     subs = list_categories(db, user_id=user.id, language=Language.RU, parent_id=root.id)
     assert len(subs) == 1
     assert subs[0].title == "Steam"
-    assert subs[0].stock_count == 1
+    assert subs[0].stock_count == 2
     assert subs[0].price == Decimal("15.00")
 
 
@@ -69,5 +71,5 @@ def test_category_view_and_product_cards() -> None:
     assert view.title == "Софт"
     assert view.stock_count == 2
 
-    cards = list_product_cards(db, category_id=category.id, price=view.price)
-    assert cards == ["#1 | 5.50", "#2 | 5.50"]
+    cards = list_product_cards(db, category_id=category.id)
+    assert [card.product_id for card in cards] == [1, 2]

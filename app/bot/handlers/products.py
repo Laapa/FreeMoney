@@ -2,14 +2,19 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
 from app.bot.i18n import t
+from app.bot.keyboards.main_menu import main_menu_keyboard
 from app.bot.keyboards.products import (
+    CALLBACK_MENU,
     CALLBACK_ROOT,
+    CALLBACK_TOP_UP,
     categories_keyboard,
     category_view_keyboard,
     product_list_keyboard,
+    reservation_success_keyboard,
+    top_up_placeholder_keyboard,
 )
 from app.db.session import SessionLocal
-from app.services.catalog import get_category_view, list_categories, list_product_cards
+from app.services.catalog import get_category_breadcrumbs, get_category_view, list_categories, list_product_cards
 from app.services.purchase import reserve_product_for_user
 from app.services.users import get_user_by_telegram_id, init_or_update_user
 
@@ -49,6 +54,54 @@ async def show_root_categories(message: Message) -> None:
         t("products_root_title", user.language),
         reply_markup=categories_keyboard(categories, user.language),
     )
+
+
+@router.callback_query(F.data == CALLBACK_MENU)
+async def on_main_menu(callback: CallbackQuery) -> None:
+    message = callback.message
+    tg_user = callback.from_user
+    if message is None:
+        await callback.answer()
+        return
+
+    with SessionLocal() as db:
+        user = get_user_by_telegram_id(db, tg_user.id)
+        if user is None:
+            user = init_or_update_user(
+                db,
+                telegram_id=tg_user.id,
+                username=tg_user.username,
+                language_code=tg_user.language_code,
+            )
+
+    await message.answer(t("start", user.language), reply_markup=main_menu_keyboard(user.language))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith(CALLBACK_TOP_UP))
+async def on_top_up_placeholder(callback: CallbackQuery) -> None:
+    message = callback.message
+    tg_user = callback.from_user
+    if message is None or callback.data is None:
+        await callback.answer()
+        return
+
+    with SessionLocal() as db:
+        user = get_user_by_telegram_id(db, tg_user.id)
+        if user is None:
+            user = init_or_update_user(
+                db,
+                telegram_id=tg_user.id,
+                username=tg_user.username,
+                language_code=tg_user.language_code,
+            )
+
+    category_id = int(callback.data.split(":")[-1])
+    await message.edit_text(
+        t("top_up_placeholder", user.language),
+        reply_markup=top_up_placeholder_keyboard(category_id=category_id, language=user.language),
+    )
+    await callback.answer()
 
 
 @router.callback_query(F.data == CALLBACK_ROOT)
@@ -107,10 +160,12 @@ async def on_category(callback: CallbackQuery) -> None:
             return
 
         children = list_categories(db, user_id=user.id, language=user.language, parent_id=category.id)
+        breadcrumbs = " / ".join(get_category_breadcrumbs(db, category_id=category.id, language=user.language))
 
     price_text = str(category.price) if category.price is not None else t("products_price_missing", user.language)
     text = t("products_category_view", user.language).format(
         title=category.title,
+        breadcrumb=breadcrumbs,
         price=price_text,
         stock=category.stock_count,
     )
@@ -147,16 +202,27 @@ async def on_product_list(callback: CallbackQuery) -> None:
             await callback.answer(t("products_category_not_found", user.language), show_alert=True)
             return
 
-        cards = list_product_cards(db, category_id=category.id, price=category.price)
+        cards = list_product_cards(db, category_id=category.id)
+        breadcrumbs = " / ".join(get_category_breadcrumbs(db, category_id=category.id, language=user.language))
 
     lines = [
         t("products_list_title", user.language).format(title=category.title),
-        t("products_price_line", user.language).format(price=str(category.price) if category.price is not None else t("products_price_missing", user.language)),
+        t("products_breadcrumb_line", user.language).format(path=breadcrumbs),
+        t("products_price_line", user.language).format(
+            price=str(category.price) if category.price is not None else t("products_price_missing", user.language)
+        ),
         t("products_stock_line", user.language).format(stock=category.stock_count),
         "",
     ]
     if cards:
-        lines.extend(f"• {card}" for card in cards)
+        for index, card in enumerate(cards, start=1):
+            lines.append(
+                t("products_card_line", user.language).format(
+                    idx=index,
+                    product_id=card.product_id,
+                    price=str(category.price) if category.price is not None else t("products_price_missing", user.language),
+                )
+            )
     else:
         lines.append(t("products_no_stock", user.language))
 
@@ -212,6 +278,7 @@ async def on_buy(callback: CallbackQuery) -> None:
             reservation_id=attempt.reservation.id,
             order_id=attempt.order.id,
             price=attempt.order.price,
-        )
+        ),
+        reply_markup=reservation_success_keyboard(category_id=category.id, language=user.language),
     )
     await callback.answer(t("products_reserved_toast", user.language))

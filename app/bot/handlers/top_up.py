@@ -27,6 +27,7 @@ from app.services.top_up_requests import (
     set_top_up_txid,
     set_top_up_waiting_verification,
 )
+from app.services.top_up_statuses import TopUpRequestTransitionError
 from app.services.users import get_user_by_telegram_id, init_or_update_user
 
 router = Router(name="top_up")
@@ -103,9 +104,31 @@ async def top_up_show_requests(message: Message, state: FSMContext) -> None:
         lines.append(
             f"#{request.id} • {request.amount} {request.currency.value} • {_status_text(request, user.language)}"
         )
+    lines.append("")
+    lines.append(t("top_up_open_request_hint", user.language))
 
     await state.set_state(TopUpStates.choosing_method)
     await message.answer("\n".join(lines), reply_markup=top_up_main_keyboard(user.language))
+
+
+@router.message(TopUpStates.choosing_method, F.text.regexp(r"^#?\d+$"))
+async def top_up_request_details(message: Message, state: FSMContext) -> None:
+    if message.from_user is None or not message.text:
+        return
+    user = _resolve_or_create_user(message.from_user)
+    request_id = _parse_top_up_request_id(message.text)
+    if request_id is None:
+        return
+
+    with SessionLocal() as db:
+        request = get_top_up_request(db, request_id=request_id, user_id=user.id)
+
+    if request is None:
+        await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language))
+        return
+
+    await state.set_state(TopUpStates.choosing_method)
+    await message.answer(_format_top_up_request_details(request, user.language), reply_markup=top_up_main_keyboard(user.language))
 
 
 @router.message(TopUpStates.choosing_method, F.text.in_({t(TOP_UP_METHOD_CRYPTO, Language.RU), t(TOP_UP_METHOD_CRYPTO, Language.EN)}))
@@ -214,7 +237,12 @@ async def top_up_crypto_txid(message: Message, state: FSMContext) -> None:
             await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language))
             await _show_top_up_main(message, user=user, state=state)
             return
-        request = set_top_up_txid(db, request=request, txid=txid)
+        try:
+            request = set_top_up_txid(db, request=request, txid=txid)
+        except TopUpRequestTransitionError:
+            await message.answer(t("top_up_txid_state_invalid", user.language), reply_markup=top_up_main_keyboard(user.language))
+            await _show_top_up_main(message, user=user, state=state)
+            return
 
     await message.answer(
         t("top_up_waiting_verification", user.language).format(id=request.id, status=_status_text(request, user.language)),
@@ -292,3 +320,35 @@ def _parse_amount(raw_amount: str) -> Decimal | None:
 def _status_text(request: TopUpRequest, language: Language) -> str:
     key = f"top_up_status_{request.status.value}"
     return t(key, language)
+
+
+def _format_top_up_request_details(request: TopUpRequest, language: Language) -> str:
+    txid_value = request.txid or t("top_up_not_provided", language)
+    reviewed_at_value = _format_optional_datetime(request.reviewed_at, language)
+    verification_note_value = request.verification_note or t("top_up_not_provided", language)
+    return t("top_up_request_details", language).format(
+        id=request.id,
+        method=t(f"top_up_method_{'crypto' if request.method == TopUpMethod.CRYPTO_TXID else 'bybit'}", language),
+        amount=request.amount,
+        currency=request.currency.value,
+        status=_status_text(request, language),
+        txid=txid_value,
+        created_at=request.created_at.isoformat(sep=" ", timespec="seconds"),
+        reviewed_at=reviewed_at_value,
+        verification_note=verification_note_value,
+    )
+
+
+def _format_optional_datetime(value, language: Language) -> str:
+    if value is None:
+        return t("top_up_not_provided", language)
+    return value.isoformat(sep=" ", timespec="seconds")
+
+
+def _parse_top_up_request_id(raw_text: str) -> int | None:
+    normalized = raw_text.strip()
+    if normalized.startswith("#"):
+        normalized = normalized[1:]
+    if not normalized.isdigit():
+        return None
+    return int(normalized)

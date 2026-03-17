@@ -134,6 +134,18 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Последние заявки на пополнение:",
         Language.EN: "Recent top-up requests:",
     },
+    "top_up_open_request_hint": {
+        Language.RU: "Отправьте ID заявки (например, #12), чтобы увидеть детали.",
+        Language.EN: "Send a request ID (for example, #12) to view details.",
+    },
+    "top_up_request_details": {
+        Language.RU: "Детали заявки #{id}\nМетод: {method}\nСумма: {amount} {currency}\nСтатус: {status}\nTXID: {txid}\nСоздана: {created_at}\nПроверена: {reviewed_at}\nПримечание проверки: {verification_note}",
+        Language.EN: "Request #{id} details\nMethod: {method}\nAmount: {amount} {currency}\nStatus: {status}\nTXID: {txid}\nCreated at: {created_at}\nReviewed at: {reviewed_at}\nVerification note: {verification_note}",
+    },
+    "top_up_not_provided": {
+        Language.RU: "—",
+        Language.EN: "—",
+    },
     "top_up_status_waiting_txid": {Language.RU: "Ожидает TXID", Language.EN: "Waiting for TXID"},
     "top_up_status_waiting_verification": {Language.RU: "На проверке", Language.EN: "Under verification"},
     "top_up_status_verified": {Language.RU: "Подтверждено", Language.EN: "Verified"},
@@ -172,6 +184,10 @@ TEXTS: dict[str, dict[Language, str]] = {
     "top_up_txid_invalid": {
         Language.RU: "Некорректный TXID. Укажите строку без пробелов (минимум 8 символов).",
         Language.EN: "Invalid TXID. Enter a string without spaces (at least 8 characters).",
+    },
+    "top_up_txid_state_invalid": {
+        Language.RU: "Нельзя обновить TXID: заявка уже не в статусе ожидания TXID.",
+        Language.EN: "Cannot update TXID: request is no longer waiting for TXID.",
     },
     "top_up_request_not_found": {
         Language.RU: "Заявка не найдена. Попробуйте начать заново.",

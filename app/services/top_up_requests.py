@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.activity_log import ActivityLog
 from app.models.enums import Currency, LogEventType, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
+from app.services.top_up_statuses import TopUpRequestTransitionError, ensure_top_up_status_transition
 
 
 def create_top_up_request(
@@ -49,6 +50,18 @@ def create_top_up_request(
 
 
 def set_top_up_txid(db: Session, *, request: TopUpRequest, txid: str) -> TopUpRequest:
+    if request.method != TopUpMethod.CRYPTO_TXID:
+        raise TopUpRequestTransitionError(
+            f"Cannot set txid for method '{request.method.value}', expected '{TopUpMethod.CRYPTO_TXID.value}'"
+        )
+    if request.status != TopUpStatus.WAITING_TXID:
+        raise TopUpRequestTransitionError(
+            f"Cannot set txid for request in status '{request.status.value}', expected '{TopUpStatus.WAITING_TXID.value}'"
+        )
+    if request.txid is not None:
+        raise TopUpRequestTransitionError("Cannot overwrite txid for this top-up request")
+
+    ensure_top_up_status_transition(request, TopUpStatus.WAITING_VERIFICATION)
     request.txid = txid
     request.status = TopUpStatus.WAITING_VERIFICATION
 
@@ -70,6 +83,7 @@ def set_top_up_txid(db: Session, *, request: TopUpRequest, txid: str) -> TopUpRe
 
 
 def set_top_up_waiting_verification(db: Session, *, request: TopUpRequest, reference: str | None = None) -> TopUpRequest:
+    ensure_top_up_status_transition(request, TopUpStatus.WAITING_VERIFICATION)
     request.status = TopUpStatus.WAITING_VERIFICATION
     if reference:
         request.external_reference = reference

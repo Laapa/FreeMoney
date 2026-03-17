@@ -22,6 +22,14 @@ from app.services.purchase import (
     release_expired_reservations,
     reserve_product_for_user,
 )
+from app.models.enums import LogEventType, PaymentStatus, ProductStatus, ReservationStatus
+from app.models.order import Order
+from app.models.payment import Payment
+from app.models.product_pool import ProductPool
+from app.models.reservation import Reservation
+from app.models.user import User
+from app.services.payments import apply_payment_status
+from app.services.reservations import release_expired_reservations
 
 
 def make_session() -> Session:
@@ -91,6 +99,13 @@ def test_successful_payment_marks_order_delivered_and_product_sold() -> None:
     db.commit()
 
     result = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("11.00"))
+def test_successful_payment_marks_entities_consistently() -> None:
+    db = make_session()
+    user, category = seed_user_category(db)
+    db.add(ProductPool(category_id=category.id, payload="item-1", status=ProductStatus.AVAILABLE))
+    db.commit()
+    result = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("11.00"))
+
     payment = Payment(order_id=result.order.id, amount=Decimal("11.00"), status=PaymentStatus.PENDING)
     db.add(payment)
     db.commit()
@@ -111,6 +126,16 @@ def test_successful_payment_marks_order_delivered_and_product_sold() -> None:
 
 
 def test_failed_payment_releases_product_and_allows_reorder() -> None:
+    db.refresh(result.reservation)
+    db.refresh(result.order)
+    product = db.get(ProductPool, result.reservation.product_id)
+
+    assert result.reservation.status == ReservationStatus.CONVERTED
+    assert result.order.status == OrderStatus.PAID
+    assert product.status == ProductStatus.SOLD
+
+
+def test_failed_payment_releases_product_and_cancels_flow() -> None:
     db = make_session()
     user, category = seed_user_category(db)
     db.add(ProductPool(category_id=category.id, payload="item-1", status=ProductStatus.AVAILABLE))
@@ -118,6 +143,9 @@ def test_failed_payment_releases_product_and_allows_reorder() -> None:
 
     first_attempt = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("11.00"))
     payment = Payment(order_id=first_attempt.order.id, amount=Decimal("11.00"), status=PaymentStatus.PENDING)
+    result = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("11.00"))
+
+    payment = Payment(order_id=result.order.id, amount=Decimal("11.00"), status=PaymentStatus.PENDING)
     db.add(payment)
     db.commit()
 
@@ -168,3 +196,73 @@ def test_reservation_retry_uses_next_candidate_after_conflict() -> None:
     assert result.ok is True
     assert result.order is not None
     assert result.order.product_id == 2
+    db.refresh(result.reservation)
+    db.refresh(result.order)
+    product = db.get(ProductPool, result.reservation.product_id)
+
+    logs = db.scalars(select(ActivityLog).where(ActivityLog.order_id == result.order.id)).all()
+
+    assert result.reservation.status == ReservationStatus.CANCELED
+    assert result.order.status == OrderStatus.CANCELED
+    assert product.status == ProductStatus.AVAILABLE
+    assert any(log.event_type == LogEventType.PAYMENT_FAILED for log in logs)
+
+
+def test_duplicate_reservation_prevention_for_single_item_stock() -> None:
+    db = make_session()
+    user, category = seed_user_category(db)
+    second_user = User(telegram_id=1002)
+    db.add(second_user)
+    db.add(ProductPool(category_id=category.id, payload="item-1", status=ProductStatus.AVAILABLE))
+    db.commit()
+
+    first = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("9.99"))
+    second = reserve_product_for_user(db, user_id=second_user.id, category_id=category.id, price=Decimal("9.99"))
+
+    assert first.ok is True
+    assert second.ok is False
+    assert second.reason in {"no_stock_available", "reservation_conflict"}
+    reservations_count = len(db.scalars(select(ActivityLog).where(ActivityLog.event_type == LogEventType.RESERVATION_CREATED)).all())
+    assert reservations_count == 1
+def test_release_expired_reservations_returns_product_to_available() -> None:
+    db = make_session()
+    user = User(telegram_id=1)
+    category = Category(name_ru="Категория", name_en="Category")
+    product = ProductPool(category=category, payload="item-1", status=ProductStatus.RESERVED)
+    reservation = Reservation(
+        user=user,
+        product=product,
+        status=ReservationStatus.ACTIVE,
+        reserved_until=datetime.utcnow() - timedelta(minutes=1),
+    )
+    db.add_all([user, category, product, reservation])
+    db.commit()
+
+    count = release_expired_reservations(db)
+    db.refresh(product)
+    db.refresh(reservation)
+
+    logs = db.scalars(select(ActivityLog)).all()
+    assert count == 1
+    assert product.status == ProductStatus.AVAILABLE
+    assert reservation.status == ReservationStatus.EXPIRED
+    assert logs[0].event_type == LogEventType.RESERVATION_EXPIRED
+
+
+def test_failed_payment_returns_product_to_available_and_logs() -> None:
+    db = make_session()
+    user = User(telegram_id=42)
+    category = Category(name_ru="Категория", name_en="Category")
+    product = ProductPool(category=category, payload="secret", status=ProductStatus.RESERVED)
+    order = Order(user=user, product=product, price=10)
+    payment = Payment(order=order, amount=10, status=PaymentStatus.PENDING)
+
+    db.add_all([user, category, product, order, payment])
+    db.commit()
+
+    apply_payment_status(db, payment, PaymentStatus.FAILED)
+    db.refresh(product)
+
+    logs = db.scalars(select(ActivityLog)).all()
+    assert product.status == ProductStatus.AVAILABLE
+    assert logs[0].event_type == LogEventType.PAYMENT_FAILED

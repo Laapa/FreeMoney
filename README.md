@@ -23,6 +23,10 @@ Backend foundation for a Telegram shop bot MVP.
   - release expired reservations and cancel pending orders
   - apply payment success/failure transitions consistently
   - complete auto-delivery by storing delivered payload and marking order delivered
+  - reserve one available item in category
+  - create reservation with TTL and linked order
+  - release expired reservations and cancel pending orders
+  - apply payment success/failure transitions consistently
 - Alembic migration scaffolding + initial migration.
 - Tests for reservation and payment flows.
 
@@ -34,6 +38,9 @@ Backend foundation for a Telegram shop bot MVP.
 4. Removed unique constraint from `orders.product_id` so one product can appear in multiple historical orders (e.g., failed payment then later successful purchase); unique constraint on `orders.reservation_id` is kept.
 5. Added delivery fields to `orders`: `delivered_payload` and `delivered_at` to persist auto-delivery result and completion timestamp.
 6. Payment success now follows paid->delivered completion flow with `DELIVERY_COMPLETED` log; failed/expired payments consistently cancel reservation/order and release product back to `available`.
+4. Payment transitions now update reservation/order/product in one consistent service path.
+- Alembic migration scaffolding + initial migration.
+- Minimal tests with `pytest` for core reservation/payment behavior.
 
 ## Project structure
 
@@ -100,3 +107,11 @@ curl http://127.0.0.1:8000/health
 ```bash
 pytest
 ```
+
+## Notes on business rules coverage
+
+- Product statuses: `available`, `reserved`, `sold`.
+- Expired reservations are released by `release_expired_reservations()`.
+- Failed/expired payments return products to `available` via `apply_payment_status()`.
+- Sales/reservations/payment failures are logged in `activity_logs`.
+

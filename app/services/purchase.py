@@ -41,6 +41,10 @@ def reserve_product_for_user(
     current_time = now or datetime.utcnow()
 
     candidate_ids = db.scalars(
+) -> ReservationAttemptResult:
+    current_time = now or datetime.utcnow()
+
+    candidate_id = db.scalar(
         select(ProductPool.id)
         .where(
             ProductPool.category_id == category_id,
@@ -80,6 +84,29 @@ def reserve_product_for_user(
     reservation = Reservation(
         user_id=user_id,
         product_id=reserved_product_id,
+        .limit(1)
+    )
+
+    if candidate_id is None:
+        return ReservationAttemptResult(ok=False, reason="no_stock_available")
+
+    update_result = db.execute(
+        update(ProductPool)
+        .where(
+            ProductPool.id == candidate_id,
+            ProductPool.status == ProductStatus.AVAILABLE,
+        )
+        .values(status=ProductStatus.RESERVED)
+    )
+
+    if update_result.rowcount != 1:
+        db.rollback()
+        return ReservationAttemptResult(ok=False, reason="reservation_conflict")
+
+    product = db.get(ProductPool, candidate_id)
+    reservation = Reservation(
+        user_id=user_id,
+        product_id=candidate_id,
         status=ReservationStatus.ACTIVE,
         reserved_until=current_time + timedelta(minutes=ttl_minutes),
     )
@@ -89,6 +116,7 @@ def reserve_product_for_user(
     order = Order(
         user_id=user_id,
         product_id=reserved_product_id,
+        product_id=candidate_id,
         reservation_id=reservation.id,
         price=price,
         status=OrderStatus.PENDING,
@@ -102,6 +130,8 @@ def reserve_product_for_user(
             order_id=order.id,
             event_type=LogEventType.RESERVATION_CREATED,
             payload={"product_id": reserved_product_id, "category_id": category_id},
+            event_type=LogEventType.RESERVATION_CREATED,
+            payload={"product_id": candidate_id, "category_id": category_id},
         )
     )
 

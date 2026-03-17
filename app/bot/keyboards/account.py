@@ -1,0 +1,39 @@
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+from app.bot.i18n import t
+from app.models.enums import Language
+
+CALLBACK_PROFILE_BACK = "acc:profile:back"
+CALLBACK_PROFILE_MENU = "acc:profile:menu"
+CALLBACK_ORDERS_BACK = "acc:orders:back"
+CALLBACK_ORDERS_MENU = "acc:orders:menu"
+CALLBACK_ORDERS_PAGE = "acc:orders:page"
+
+
+def orders_page_callback(page: int) -> str:
+    return f"{CALLBACK_ORDERS_PAGE}:{page}"
+
+
+def profile_keyboard(language: Language) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t("nav_back", language), callback_data=CALLBACK_PROFILE_BACK)],
+            [InlineKeyboardButton(text=t("nav_main_menu", language), callback_data=CALLBACK_PROFILE_MENU)],
+        ]
+    )
+
+
+def orders_keyboard(*, language: Language, page: int, pages: int) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if pages > 1:
+        nav_row: list[InlineKeyboardButton] = []
+        if page > 1:
+            nav_row.append(InlineKeyboardButton(text=t("nav_prev", language), callback_data=orders_page_callback(page - 1)))
+        if page < pages:
+            nav_row.append(InlineKeyboardButton(text=t("nav_next", language), callback_data=orders_page_callback(page + 1)))
+        if nav_row:
+            rows.append(nav_row)
+
+    rows.append([InlineKeyboardButton(text=t("nav_back", language), callback_data=CALLBACK_ORDERS_BACK)])
+    rows.append([InlineKeyboardButton(text=t("nav_main_menu", language), callback_data=CALLBACK_ORDERS_MENU)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)

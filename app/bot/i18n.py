@@ -13,11 +13,48 @@ TEXTS: dict[str, dict[Language, str]] = {
     "menu_support": {Language.RU: "🛟 Поддержка", Language.EN: "🛟 Support"},
     "profile_title": {Language.RU: "Ваш профиль", Language.EN: "Your profile"},
     "profile_body": {
-        Language.RU: "ID: {id}\nUsername: {username}\nЯзык: {language}\nБаланс: {balance} {currency}",
-        Language.EN: "ID: {id}\nUsername: {username}\nLanguage: {language}\nBalance: {balance} {currency}",
+        Language.RU: (
+            "🆔 Telegram ID: {id}\n"
+            "👤 Username: {username}\n"
+            "📅 Дата регистрации: {registered_at}\n"
+            "💰 Баланс: {balance} {currency}\n"
+            "🌐 Язык: {language}\n"
+            "📦 Всего заказов: {total_orders}\n"
+            "✅ Доставлено: {delivered_orders}\n"
+            "💸 Потрачено: {total_spent} {currency}"
+        ),
+        Language.EN: (
+            "🆔 Telegram ID: {id}\n"
+            "👤 Username: {username}\n"
+            "📅 Registered: {registered_at}\n"
+            "💰 Balance: {balance} {currency}\n"
+            "🌐 Language: {language}\n"
+            "📦 Total orders: {total_orders}\n"
+            "✅ Delivered: {delivered_orders}\n"
+            "💸 Total spent: {total_spent} {currency}"
+        ),
     },
     "orders_empty": {Language.RU: "У вас пока нет заказов.", Language.EN: "You have no orders yet."},
-    "orders_title": {Language.RU: "Ваши заказы:", Language.EN: "Your orders:"},
+    "orders_title": {
+        Language.RU: "📦 Ваши заказы (страница {page}/{pages})",
+        Language.EN: "📦 Your orders (page {page}/{pages})",
+    },
+    "orders_card": {
+        Language.RU: "Заказ #{id}\n📅 Создан: {created_at}\n📌 Статус: {status}\n💵 Цена: {price} {currency}",
+        Language.EN: "Order #{id}\n📅 Created: {created_at}\n📌 Status: {status}\n💵 Price: {price} {currency}",
+    },
+    "orders_payload": {
+        Language.RU: "🔑 Данные:\n{payload}",
+        Language.EN: "🔑 Payload:\n{payload}",
+    },
+    "orders_status_pending": {Language.RU: "Ожидает оплаты", Language.EN: "Pending"},
+    "orders_status_paid": {Language.RU: "Оплачен", Language.EN: "Paid"},
+    "orders_status_delivered": {Language.RU: "Доставлен", Language.EN: "Delivered"},
+    "orders_status_canceled": {Language.RU: "Отменен", Language.EN: "Canceled"},
+    "nav_back": {Language.RU: "⬅️ Назад", Language.EN: "⬅️ Back"},
+    "nav_main_menu": {Language.RU: "🏠 Главное меню", Language.EN: "🏠 Main menu"},
+    "nav_next": {Language.RU: "➡️ Далее", Language.EN: "➡️ Next"},
+    "nav_prev": {Language.RU: "⬅️ Назад", Language.EN: "⬅️ Prev"},
     "products_placeholder": {
         Language.RU: "Раздел товаров скоро будет доступен.",
         Language.EN: "Products section is coming soon.",

@@ -61,3 +61,6 @@ class LogEventType(str, Enum):
     DELIVERY_COMPLETED = "delivery_completed"
     TOP_UP_REQUEST_CREATED = "top_up_request_created"
     TOP_UP_WAITING_VERIFICATION = "top_up_waiting_verification"
+    TOP_UP_VERIFIED = "top_up_verified"
+    TOP_UP_REJECTED = "top_up_rejected"
+    TOP_UP_EXPIRED = "top_up_expired"

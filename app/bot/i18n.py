@@ -121,9 +121,25 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Product reserved",
     },
     "top_up_main": {
-        Language.RU: "💳 Пополнение\n\nТекущий баланс: {balance} {currency}\nВыберите способ пополнения:",
-        Language.EN: "💳 Top Up\n\nCurrent balance: {balance} {currency}\nChoose a top-up method:",
+        Language.RU: "💳 Пополнение\n\nТекущий баланс: {balance} {currency}\nВыберите действие:",
+        Language.EN: "💳 Top Up\n\nCurrent balance: {balance} {currency}\nChoose an action:",
     },
+
+    "top_up_my_requests": {Language.RU: "📄 Мои заявки", Language.EN: "📄 My requests"},
+    "top_up_no_requests": {
+        Language.RU: "У вас пока нет заявок на пополнение.",
+        Language.EN: "You do not have top-up requests yet.",
+    },
+    "top_up_status_list_title": {
+        Language.RU: "Последние заявки на пополнение:",
+        Language.EN: "Recent top-up requests:",
+    },
+    "top_up_status_waiting_txid": {Language.RU: "Ожидает TXID", Language.EN: "Waiting for TXID"},
+    "top_up_status_waiting_verification": {Language.RU: "На проверке", Language.EN: "Under verification"},
+    "top_up_status_verified": {Language.RU: "Подтверждено", Language.EN: "Verified"},
+    "top_up_status_rejected": {Language.RU: "Отклонено", Language.EN: "Rejected"},
+    "top_up_status_expired": {Language.RU: "Истекло", Language.EN: "Expired"},
+    "top_up_status_pending": {Language.RU: "В обработке", Language.EN: "Pending"},
     "top_up_method_crypto": {Language.RU: "🧾 Crypto by TXID", Language.EN: "🧾 Crypto by TXID"},
     "top_up_method_bybit": {Language.RU: "🏦 Bybit UID", Language.EN: "🏦 Bybit UID"},
     "top_up_cancel": {Language.RU: "❌ Отменить", Language.EN: "❌ Cancel"},
@@ -162,8 +178,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Request not found. Please start again.",
     },
     "top_up_waiting_verification": {
-        Language.RU: "Заявка #{id} переведена в статус {status}. Проверка платежа будет добавлена позже.",
-        Language.EN: "Request #{id} is now in {status} status. Payment verification will be implemented later.",
+        Language.RU: "Заявка #{id} отправлена на проверку. Текущий статус: {status}. Мы уведомим вас после проверки.",
+        Language.EN: "Request #{id} was sent for review. Current status: {status}. We will notify you after verification.",
     },
     "top_up_bybit_intro": {
         Language.RU: "Пополнение через Bybit UID. Введите сумму, и мы создадим заявку.",

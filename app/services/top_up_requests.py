@@ -94,3 +94,13 @@ def set_top_up_waiting_verification(db: Session, *, request: TopUpRequest, refer
 
 def get_top_up_request(db: Session, *, request_id: int, user_id: int) -> TopUpRequest | None:
     return db.scalar(select(TopUpRequest).where(TopUpRequest.id == request_id, TopUpRequest.user_id == user_id))
+
+
+def list_user_top_up_requests(db: Session, *, user_id: int, limit: int = 5) -> list[TopUpRequest]:
+    statement = (
+        select(TopUpRequest)
+        .where(TopUpRequest.user_id == user_id)
+        .order_by(TopUpRequest.created_at.desc())
+        .limit(limit)
+    )
+    return list(db.scalars(statement).all())

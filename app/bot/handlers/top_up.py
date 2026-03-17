@@ -11,16 +11,19 @@ from app.bot.keyboards.top_up import (
     TOP_UP_CANCEL,
     TOP_UP_METHOD_BYBIT,
     TOP_UP_METHOD_CRYPTO,
+    TOP_UP_MY_REQUESTS,
     top_up_cancel_keyboard,
     top_up_main_keyboard,
     top_up_network_keyboard,
 )
 from app.db.session import SessionLocal
-from app.models.enums import Language, TopUpMethod
+from app.models.enums import Language, TopUpMethod, TopUpStatus
+from app.models.top_up_request import TopUpRequest
 from app.models.user import User
 from app.services.top_up_requests import (
     create_top_up_request,
     get_top_up_request,
+    list_user_top_up_requests,
     set_top_up_txid,
     set_top_up_waiting_verification,
 )
@@ -80,6 +83,29 @@ async def back_to_main_menu(message: Message, state: FSMContext) -> None:
 @router.message(TopUpStates.choosing_method, F.text.in_({t("nav_back", Language.RU), t("nav_back", Language.EN)}))
 async def top_up_back_to_main(message: Message, state: FSMContext) -> None:
     await back_to_main_menu(message, state)
+
+
+@router.message(TopUpStates.choosing_method, F.text.in_({t(TOP_UP_MY_REQUESTS, Language.RU), t(TOP_UP_MY_REQUESTS, Language.EN)}))
+async def top_up_show_requests(message: Message, state: FSMContext) -> None:
+    if message.from_user is None:
+        return
+    user = _resolve_or_create_user(message.from_user)
+
+    with SessionLocal() as db:
+        requests = list_user_top_up_requests(db, user_id=user.id)
+
+    if not requests:
+        await message.answer(t("top_up_no_requests", user.language), reply_markup=top_up_main_keyboard(user.language))
+        return
+
+    lines = [t("top_up_status_list_title", user.language)]
+    for request in requests:
+        lines.append(
+            f"#{request.id} • {request.amount} {request.currency.value} • {_status_text(request, user.language)}"
+        )
+
+    await state.set_state(TopUpStates.choosing_method)
+    await message.answer("\n".join(lines), reply_markup=top_up_main_keyboard(user.language))
 
 
 @router.message(TopUpStates.choosing_method, F.text.in_({t(TOP_UP_METHOD_CRYPTO, Language.RU), t(TOP_UP_METHOD_CRYPTO, Language.EN)}))
@@ -153,7 +179,7 @@ async def top_up_crypto_amount(message: Message, state: FSMContext) -> None:
             method=t("top_up_method_crypto", user.language),
             amount=request.amount,
             currency=request.currency.value,
-            status=request.status.value,
+            status=_status_text(request, user.language),
             note=request.external_reference or "-",
         )
         + "\n\n"
@@ -191,7 +217,7 @@ async def top_up_crypto_txid(message: Message, state: FSMContext) -> None:
         request = set_top_up_txid(db, request=request, txid=txid)
 
     await message.answer(
-        t("top_up_waiting_verification", user.language).format(id=request.id, status=request.status.value),
+        t("top_up_waiting_verification", user.language).format(id=request.id, status=_status_text(request, user.language)),
         reply_markup=top_up_main_keyboard(user.language),
     )
     await state.set_state(TopUpStates.choosing_method)
@@ -237,13 +263,13 @@ async def top_up_bybit_amount(message: Message, state: FSMContext) -> None:
             method=t("top_up_method_bybit", user.language),
             amount=request.amount,
             currency=request.currency.value,
-            status=request.status.value,
+            status=_status_text(request, user.language),
             note=request.external_reference or "-",
         )
         + "\n\n"
         + t("top_up_bybit_instructions", user.language)
         + "\n\n"
-        + t("top_up_waiting_verification", user.language).format(id=request.id, status=request.status.value),
+        + t("top_up_waiting_verification", user.language).format(id=request.id, status=_status_text(request, user.language)),
         reply_markup=top_up_main_keyboard(user.language),
     )
     await state.set_state(TopUpStates.choosing_method)
@@ -261,3 +287,8 @@ def _parse_amount(raw_amount: str) -> Decimal | None:
     if amount.as_tuple().exponent < -2:
         return None
     return amount.quantize(Decimal("0.01"))
+
+
+def _status_text(request: TopUpRequest, language: Language) -> str:
+    key = f"top_up_status_{request.status.value}"
+    return t(key, language)

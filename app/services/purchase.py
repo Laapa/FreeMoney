@@ -27,7 +27,6 @@ class ReservationAttemptResult:
     order: Order | None = None
 
 
-
 def reserve_product_for_user(
     db: Session,
     *,
@@ -41,10 +40,6 @@ def reserve_product_for_user(
     current_time = now or datetime.utcnow()
 
     candidate_ids = db.scalars(
-) -> ReservationAttemptResult:
-    current_time = now or datetime.utcnow()
-
-    candidate_id = db.scalar(
         select(ProductPool.id)
         .where(
             ProductPool.category_id == category_id,
@@ -84,29 +79,6 @@ def reserve_product_for_user(
     reservation = Reservation(
         user_id=user_id,
         product_id=reserved_product_id,
-        .limit(1)
-    )
-
-    if candidate_id is None:
-        return ReservationAttemptResult(ok=False, reason="no_stock_available")
-
-    update_result = db.execute(
-        update(ProductPool)
-        .where(
-            ProductPool.id == candidate_id,
-            ProductPool.status == ProductStatus.AVAILABLE,
-        )
-        .values(status=ProductStatus.RESERVED)
-    )
-
-    if update_result.rowcount != 1:
-        db.rollback()
-        return ReservationAttemptResult(ok=False, reason="reservation_conflict")
-
-    product = db.get(ProductPool, candidate_id)
-    reservation = Reservation(
-        user_id=user_id,
-        product_id=candidate_id,
         status=ReservationStatus.ACTIVE,
         reserved_until=current_time + timedelta(minutes=ttl_minutes),
     )
@@ -116,13 +88,13 @@ def reserve_product_for_user(
     order = Order(
         user_id=user_id,
         product_id=reserved_product_id,
-        product_id=candidate_id,
         reservation_id=reservation.id,
         price=price,
         status=OrderStatus.PENDING,
     )
     db.add(order)
     db.flush()
+
     db.add(
         ActivityLog(
             user_id=user_id,
@@ -130,8 +102,6 @@ def reserve_product_for_user(
             order_id=order.id,
             event_type=LogEventType.RESERVATION_CREATED,
             payload={"product_id": reserved_product_id, "category_id": category_id},
-            event_type=LogEventType.RESERVATION_CREATED,
-            payload={"product_id": candidate_id, "category_id": category_id},
         )
     )
 
@@ -141,14 +111,14 @@ def reserve_product_for_user(
     return ReservationAttemptResult(ok=True, reason="reserved", reservation=reservation, order=order)
 
 
-
 def release_expired_reservations(db: Session, now: datetime | None = None) -> int:
     current_time = now or datetime.utcnow()
-    stmt = select(Reservation).where(
-        Reservation.status == ReservationStatus.ACTIVE,
-        Reservation.reserved_until < current_time,
-    )
-    expired = db.scalars(stmt).all()
+    expired = db.scalars(
+        select(Reservation).where(
+            Reservation.status == ReservationStatus.ACTIVE,
+            Reservation.reserved_until < current_time,
+        )
+    ).all()
 
     for reservation in expired:
         reservation.status = ReservationStatus.EXPIRED
@@ -169,19 +139,18 @@ def release_expired_reservations(db: Session, now: datetime | None = None) -> in
     return len(expired)
 
 
-
 def apply_payment_status(db: Session, payment: Payment, new_status: PaymentStatus) -> None:
     payment.status = new_status
-    order: Order = payment.order
+    order = payment.order
     reservation = order.reservation
 
     if new_status == PaymentStatus.SUCCESS:
-        order.status = OrderStatus.PAID
         reservation.status = ReservationStatus.CONVERTED
         order.product.status = ProductStatus.SOLD
         order.delivered_payload = order.product.payload
         order.delivered_at = datetime.utcnow()
         order.status = OrderStatus.DELIVERED
+
         db.add(
             ActivityLog(
                 user_id=order.user_id,

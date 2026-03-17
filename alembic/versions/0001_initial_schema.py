@@ -2,6 +2,7 @@
 
 Revision ID: 0001_initial
 Revises:
+Revises: 
 Create Date: 2026-03-17 00:00:00.000000
 
 """
@@ -9,6 +10,9 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from alembic import op
+import sqlalchemy as sa
+
 
 # revision identifiers, used by Alembic.
 revision: str = "0001_initial"
@@ -36,6 +40,7 @@ def upgrade() -> None:
         sa.Column("language", sa.Enum("RU", "EN", name="language"), nullable=False),
         sa.Column("currency", sa.Enum("RUB", "USD", name="currency"), nullable=False),
         sa.Column("balance", sa.Numeric(precision=12, scale=2), nullable=False),
+        sa.Column("balance", sa.Float(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -60,6 +65,12 @@ def upgrade() -> None:
         sa.Column("product_id", sa.Integer(), nullable=False),
         sa.Column("status", sa.Enum("ACTIVE", "EXPIRED", "CONVERTED", "CANCELED", name="reservationstatus"), nullable=False),
         sa.Column("reserved_until", sa.DateTime(), nullable=False),
+        "orders",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("product_id", sa.Integer(), nullable=False),
+        sa.Column("price", sa.Float(), nullable=False),
+        sa.Column("status", sa.Enum("PENDING", "PAID", "DELIVERED", "CANCELED", name="orderstatus"), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(["product_id"], ["products_pool.id"]),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
@@ -86,6 +97,24 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_orders_user_id"), "orders", ["user_id"], unique=False)
     op.create_index(op.f("ix_orders_reservation_id"), "orders", ["reservation_id"], unique=False)
+        sa.UniqueConstraint("product_id", name="uq_order_product"),
+    )
+    op.create_index(op.f("ix_orders_user_id"), "orders", ["user_id"], unique=False)
+
+    op.create_table(
+        "reservations",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("product_id", sa.Integer(), nullable=False),
+        sa.Column("status", sa.Enum("ACTIVE", "EXPIRED", "CONVERTED", "CANCELED", name="reservationstatus"), nullable=False),
+        sa.Column("reserved_until", sa.DateTime(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(["product_id"], ["products_pool.id"]),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_reservations_product_id"), "reservations", ["product_id"], unique=False)
+    op.create_index(op.f("ix_reservations_user_id"), "reservations", ["user_id"], unique=False)
 
     op.create_table(
         "user_category_prices",
@@ -93,6 +122,7 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Integer(), nullable=False),
         sa.Column("category_id", sa.Integer(), nullable=False),
         sa.Column("price", sa.Numeric(precision=12, scale=2), nullable=False),
+        sa.Column("price", sa.Float(), nullable=False),
         sa.ForeignKeyConstraint(["category_id"], ["categories.id"]),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
@@ -107,6 +137,7 @@ def upgrade() -> None:
         sa.Column("order_id", sa.Integer(), nullable=False),
         sa.Column("provider_payment_id", sa.String(length=255), nullable=True),
         sa.Column("amount", sa.Numeric(precision=12, scale=2), nullable=False),
+        sa.Column("amount", sa.Float(), nullable=False),
         sa.Column("status", sa.Enum("CREATED", "PENDING", "SUCCESS", "FAILED", "EXPIRED", name="paymentstatus"), nullable=False),
         sa.Column("expires_at", sa.DateTime(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
@@ -167,6 +198,9 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_reservations_product_id"), table_name="reservations")
     op.drop_table("reservations")
 
+    op.drop_index(op.f("ix_orders_user_id"), table_name="orders")
+    op.drop_table("orders")
+
     op.drop_index(op.f("ix_products_pool_category_id"), table_name="products_pool")
     op.drop_table("products_pool")
 
@@ -174,3 +208,4 @@ def downgrade() -> None:
     op.drop_table("users")
 
     op.drop_table("categories")
+

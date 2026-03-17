@@ -31,6 +31,8 @@ Backend foundation for a Telegram shop bot MVP.
 2. `orders` now has `reservation_id` (unique FK) to explicitly bind each order to reservation flow.
 3. Reservation expiry flow updates related order status to `canceled` when still pending.
 4. Payment transitions now update reservation/order/product in one consistent service path.
+- Alembic migration scaffolding + initial migration.
+- Minimal tests with `pytest` for core reservation/payment behavior.
 
 ## Project structure
 
@@ -97,3 +99,11 @@ curl http://127.0.0.1:8000/health
 ```bash
 pytest
 ```
+
+## Notes on business rules coverage
+
+- Product statuses: `available`, `reserved`, `sold`.
+- Expired reservations are released by `release_expired_reservations()`.
+- Failed/expired payments return products to `available` via `apply_payment_status()`.
+- Sales/reservations/payment failures are logged in `activity_logs`.
+

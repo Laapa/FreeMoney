@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from app.core.config import get_settings
+from app.core.logging import configure_logging
+from app.db.session import SessionLocal
 from app.web.routes.activation import router as activation_router
 
+configure_logging()
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
 
@@ -19,4 +23,11 @@ def index() -> RedirectResponse:
 
 @app.get("/health", tags=["health"])
 def healthcheck() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "service": "api"}
+
+
+@app.get("/health/ready", tags=["health"])
+def readiness_check() -> dict[str, str]:
+    with SessionLocal() as db:
+        db.execute(text("SELECT 1"))
+    return {"status": "ok", "database": "reachable"}

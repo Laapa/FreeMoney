@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -6,14 +7,16 @@ from enum import Enum
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.activity_log import ActivityLog
 from app.models.enums import LogEventType, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
-from app.core.config import get_settings
 from app.models.user import User
 from app.services.blockchain.options import get_supported_crypto_options
 from app.services.blockchain.tx_verification import BlockchainVerificationResult, EvmTxVerifier
 from app.services.top_up_statuses import TopUpRequestTransitionError, ensure_top_up_status_transition
+
+logger = logging.getLogger(__name__)
 
 
 class TopUpVerificationError(str, Enum):
@@ -95,6 +98,12 @@ def verify_crypto_txid_top_up(
             request.verification_note = _build_failed_verification_note(on_chain_result, fallback=verification_note)
             db.commit()
             db.refresh(request)
+            logger.warning(
+                "Top-up verification failed on-chain | request_id=%s txid=%s reason=%s",
+                request.id,
+                request.txid,
+                on_chain_result.reason.value if on_chain_result.reason else "unknown",
+            )
             return TopUpVerificationResult(
                 ok=False,
                 request=request,
@@ -151,6 +160,12 @@ def verify_crypto_txid_top_up(
     db.commit()
 
     db.refresh(request)
+    logger.info(
+        "Top-up verification completed | request_id=%s status=%s credited=%s",
+        request.id,
+        request.status.value,
+        bool(request.credited_at),
+    )
     return TopUpVerificationResult(ok=True, request=request, on_chain_result=on_chain_result)
 
 
@@ -224,6 +239,7 @@ def verify_bybit_uid_top_up(
     db.commit()
 
     db.refresh(request)
+    logger.info("Bybit top-up verification completed | request_id=%s status=%s", request.id, request.status.value)
     return TopUpVerificationResult(ok=True, request=request)
 
 

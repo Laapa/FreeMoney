@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -7,6 +8,8 @@ from app.models.activity_log import ActivityLog
 from app.models.enums import Currency, LogEventType, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
 from app.services.top_up_statuses import TopUpRequestTransitionError, ensure_top_up_status_transition
+
+logger = logging.getLogger(__name__)
 
 
 def create_top_up_request(
@@ -52,6 +55,14 @@ def create_top_up_request(
 
     db.commit()
     db.refresh(request)
+    logger.info(
+        "Top-up request created | request_id=%s user_id=%s method=%s amount=%s %s",
+        request.id,
+        request.user_id,
+        request.method.value,
+        request.amount,
+        request.currency.value,
+    )
     return request
 
 
@@ -85,6 +96,7 @@ def set_top_up_txid(db: Session, *, request: TopUpRequest, txid: str) -> TopUpRe
 
     db.commit()
     db.refresh(request)
+    logger.info("Top-up moved to waiting verification | request_id=%s txid_set=true", request.id)
     return request
 
 
@@ -109,6 +121,7 @@ def set_top_up_waiting_verification(db: Session, *, request: TopUpRequest, refer
 
     db.commit()
     db.refresh(request)
+    logger.info("Top-up waiting verification updated | request_id=%s", request.id)
     return request
 
 
@@ -151,6 +164,7 @@ def set_bybit_sender_reference(
 
     db.commit()
     db.refresh(request)
+    logger.info("Bybit top-up moved to waiting verification | request_id=%s sender_uid=%s", request.id, bool(request.sender_uid))
     return request
 
 

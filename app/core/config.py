@@ -8,10 +8,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "FreeMoney Backend"
-    app_env: str = "dev"
+    app_name: str = Field(default="FreeMoney Backend", alias="APP_NAME")
+    app_env: str = Field(default="dev", alias="APP_ENV")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+
     database_url: str = Field(default="sqlite:///./freemoney.db", alias="DATABASE_URL")
+    sql_echo: bool = Field(default=False, alias="SQL_ECHO")
+
     telegram_bot_token: str | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
+
     blockchain_explorer_base_urls: dict[str, str] = Field(
         default={"bsc": "https://api.bscscan.com/api"},
         alias="BLOCKCHAIN_EXPLORER_BASE_URLS",
@@ -31,11 +36,8 @@ class Settings(BaseSettings):
         },
         alias="BLOCKCHAIN_SUPPORTED_CRYPTO_OPTIONS",
     )
-    blockchain_expected_recipient_wallets: dict[str, str] = Field(
-        default_factory=dict,
-        alias="BLOCKCHAIN_EXPECTED_RECIPIENT_WALLETS",
-    )
     blockchain_amount_tolerance: Decimal = Field(default=Decimal("0"), alias="BLOCKCHAIN_AMOUNT_TOLERANCE")
+
     activation_api_base_url: str = Field(default="http://127.0.0.1:9000", alias="ACTIVATION_API_BASE_URL")
     activation_api_timeout_seconds: float = Field(default=10.0, alias="ACTIVATION_API_TIMEOUT_SECONDS")
 

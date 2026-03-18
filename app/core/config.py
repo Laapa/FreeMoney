@@ -36,6 +36,8 @@ class Settings(BaseSettings):
         alias="BLOCKCHAIN_EXPECTED_RECIPIENT_WALLETS",
     )
     blockchain_amount_tolerance: Decimal = Field(default=Decimal("0"), alias="BLOCKCHAIN_AMOUNT_TOLERANCE")
+    activation_api_base_url: str = Field(default="http://127.0.0.1:9000", alias="ACTIVATION_API_BASE_URL")
+    activation_api_timeout_seconds: float = Field(default=10.0, alias="ACTIVATION_API_TIMEOUT_SECONDS")
 
 
 @lru_cache(maxsize=1)

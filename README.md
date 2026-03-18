@@ -94,6 +94,10 @@ Defaults are development-friendly; override with `.env`:
 ```env
 DATABASE_URL=sqlite:///./freemoney.db
 TELEGRAM_BOT_TOKEN=your_bot_token_here
+BLOCKCHAIN_EXPLORER_BASE_URLS={"bsc":"https://api.bscscan.com/api"}
+BLOCKCHAIN_EXPLORER_API_KEYS={"bsc":"your_bscscan_api_key"}
+BLOCKCHAIN_AMOUNT_TOLERANCE=0
+BLOCKCHAIN_SUPPORTED_CRYPTO_OPTIONS={"bsc_usdt":{"network":"bsc","display_label":"USDT BSC (BEP20)","token_symbol":"usdt","token_contract":"0x55d398326f99059ff775485246999027b3197955","token_decimals":18,"recipient_wallet":"0xyour_deposit_wallet","is_native_coin":false}}
 ```
 
 ### 3) Run migrations
@@ -134,3 +138,33 @@ pytest
 - Expired reservations are released by `release_expired_reservations()`.
 - Failed/expired payments return products to `available` via `apply_payment_status()`.
 - Sales/reservations/payment failures are logged in `activity_logs`.
+
+## Crypto TXID verification flow (real on-chain check)
+
+- Scope implemented now: `CRYPTO_TXID` request verification on EVM-compatible chains, with BSC configured first.
+- On `verify_crypto_txid_top_up(..., target_status=VERIFIED)`:
+  1. Existing safe status checks run first (method, status transition, duplicate credit guard).
+  2. Service requests transaction + receipt from configured explorer API (BscScan-compatible proxy endpoints).
+  3. Verification requires:
+     - tx exists,
+     - tx receipt status is successful (`0x1`),
+     - network + token match a configured supported crypto option,
+     - recipient wallet matches the option's `recipient_wallet`,
+     - for token transfers, receipt log contract address matches option `token_contract`,
+     - for token transfers, amount is decoded with option `token_decimals`,
+     - amount is at least requested amount (plus optional tolerance).
+  4. Only then request becomes `VERIFIED`, user balance is credited once, and verified on-chain fields are persisted.
+- On-chain verification failures keep the request safe (not credited, no terminal status transition) and store a verification note with failure reason.
+
+### Supported crypto options config
+
+- `BLOCKCHAIN_SUPPORTED_CRYPTO_OPTIONS` is the source of truth for supported deposits.
+- Each option must include:
+  - `network` (e.g. `bsc`)
+  - `display_label` (shown to user in bot)
+  - `token_symbol` (`usdt` for token flow, null for native coin flow)
+  - `token_contract` (required for token flow)
+  - `token_decimals`
+  - `recipient_wallet`
+  - `is_native_coin` (`false` for BSC USDT BEP20)
+- For BSC USDT verification specifically, configure real BEP20 USDT contract and your deposit wallet in this option.

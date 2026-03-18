@@ -139,8 +139,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Send a request ID (for example, #12) to view details.",
     },
     "top_up_request_details": {
-        Language.RU: "Детали заявки #{id}\nМетод: {method}\nСумма: {amount} {currency}\nСтатус: {status}\nTXID: {txid}\nUID отправителя: {sender_uid}\nВнешняя ссылка/референс: {external_reference}\nСоздана: {created_at}\nПроверена: {reviewed_at}\nПримечание проверки: {verification_note}",
-        Language.EN: "Request #{id} details\nMethod: {method}\nAmount: {amount} {currency}\nStatus: {status}\nTXID: {txid}\nSender UID: {sender_uid}\nExternal reference: {external_reference}\nCreated at: {created_at}\nReviewed at: {reviewed_at}\nVerification note: {verification_note}",
+        Language.RU: "Детали заявки #{id}\nМетод: {method}\nСумма: {amount} {currency}\nСтатус: {status}\nTXID: {txid}\nUID отправителя: {sender_uid}\nВнешняя ссылка/референс: {external_reference}\nПроверенная сеть: {verified_network}\nПроверенный токен: {verified_token}\nПроверенная сумма: {verified_amount}\nКошелек получателя: {verified_recipient}\nСоздана: {created_at}\nПроверена: {reviewed_at}\nПримечание проверки: {verification_note}",
+        Language.EN: "Request #{id} details\nMethod: {method}\nAmount: {amount} {currency}\nStatus: {status}\nTXID: {txid}\nSender UID: {sender_uid}\nExternal reference: {external_reference}\nVerified network: {verified_network}\nVerified token: {verified_token}\nVerified amount: {verified_amount}\nRecipient wallet: {verified_recipient}\nCreated at: {created_at}\nReviewed at: {reviewed_at}\nVerification note: {verification_note}",
     },
     "top_up_not_provided": {
         Language.RU: "—",
@@ -159,8 +159,7 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Отправьте перевод и укажите TXID. Сначала выберите сеть/токен:",
         Language.EN: "Send a transfer and provide TXID. First choose network/token:",
     },
-    "top_up_network_trc20": {Language.RU: "USDT TRC20", Language.EN: "USDT TRC20"},
-    "top_up_network_erc20": {Language.RU: "USDT ERC20", Language.EN: "USDT ERC20"},
+    "top_up_network_bsc_usdt": {Language.RU: "USDT BSC (BEP20)", Language.EN: "USDT BSC (BEP20)"},
     "top_up_network_invalid": {
         Language.RU: "Выберите сеть из кнопок ниже.",
         Language.EN: "Please choose a network from the buttons below.",

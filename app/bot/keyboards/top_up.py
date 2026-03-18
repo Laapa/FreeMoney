@@ -30,10 +30,11 @@ def top_up_cancel_keyboard(language: Language) -> ReplyKeyboardMarkup:
     )
 
 
-def top_up_network_keyboard(language: Language) -> ReplyKeyboardMarkup:
+def top_up_network_keyboard(language: Language, *, network_labels: list[str]) -> ReplyKeyboardMarkup:
+    network_rows = [[KeyboardButton(text=label)] for label in network_labels]
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=t("top_up_network_trc20", language)), KeyboardButton(text=t("top_up_network_erc20", language))],
+            *network_rows,
             [KeyboardButton(text=t(TOP_UP_CANCEL, language))],
             [KeyboardButton(text=t("nav_back", language)), KeyboardButton(text=t("nav_main_menu", language))],
         ],

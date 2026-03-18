@@ -1,85 +1,37 @@
-# FreeMoney Backend Foundation (MVP)
+# FreeMoney MVP Backend (Bot + Activation Site)
 
-Backend foundation for a Telegram shop bot MVP.
+This repository contains the MVP backend for:
+- Telegram bot shop flow (catalog, reservation, top-up request creation).
+- Activation website (`/activation`) for final code/token activation.
 
-## What is implemented
+## 1) Environment and configuration
 
-- Clean modular structure (`app/core`, `app/db`, `app/models`, `app/services`, `tests`, `alembic`).
-- Configuration via `pydantic-settings`.
-- SQLAlchemy setup for SQLite-first development.
-- Models:
-  - `users`
-  - `categories` (with subcategories through self-reference)
-  - `products_pool` (1 row = 1 issued item)
-  - `reservations`
-  - `orders`
-  - `payments`
-  - `user_category_prices`
-  - `activity_logs` (for reservation/payment/sale/delivery events)
-- Status enums for business workflows.
-- Reservation/purchase service foundation:
-  - reserve one available item in category with retry across candidates on conflict
-  - create reservation with TTL and linked order
-  - release expired reservations and cancel pending orders
-  - apply payment success/failure transitions consistently
-  - complete auto-delivery by storing delivered payload and marking order delivered
-- Telegram bot foundation with modular aiogram routers:
-  - bot polling entrypoint
-  - `/start` user initialization flow
-  - RU/EN text helper and main menu keyboard
-  - profile and orders handlers backed by database data
-  - placeholder handlers for Products / Top Up / Rules / Support
-- Alembic migration scaffolding + initial migration.
-- Tests for reservation and payment flows plus user service checks.
+Copy example environment and edit values:
 
-## Schema changes and rationale
-
-1. Money fields now use `Numeric(12,2)` / `Decimal` (`users.balance`, `orders.price`, `payments.amount`, `user_category_prices.price`) to avoid floating-point rounding issues in financial logic.
-2. `orders` now has `reservation_id` (unique FK) to explicitly bind each order to reservation flow.
-3. Reservation expiry flow updates related order status to `canceled` when still pending.
-4. Removed unique constraint from `orders.product_id` so one product can appear in multiple historical orders (e.g., failed payment then later successful purchase); unique constraint on `orders.reservation_id` is kept.
-5. Added delivery fields to `orders`: `delivered_payload` and `delivered_at` to persist auto-delivery result and completion timestamp.
-6. Payment success now follows paid->delivered completion flow with `DELIVERY_COMPLETED` log; failed/expired payments consistently cancel reservation/order and release product back to `available`.
-
-## Project structure
-
-```text
-app/
-  bot/
-    handlers/
-      menu.py
-      start.py
-    keyboards/
-      main_menu.py
-    i18n.py
-    main.py
-    router.py
-  core/
-    config.py
-  db/
-    base.py
-    session.py
-  models/
-    *.py
-  services/
-    purchase.py
-    reservations.py
-    payments.py
-    orders.py
-    users.py
-  main.py
-alembic/
-  env.py
-  versions/
-    0001_initial_schema.py
-tests/
-  test_models_and_services.py
-  test_user_services.py
+```bash
+cp .env.example .env
 ```
 
-## Quick start
+### Required variables
 
-### 1) Install dependencies
+- `DATABASE_URL` - database connection string.
+- `TELEGRAM_BOT_TOKEN` - required to run the Telegram bot.
+- `ACTIVATION_API_BASE_URL` - external activation API base URL.
+
+### Important optional variables
+
+- `LOG_LEVEL` (`INFO` by default).
+- `SQL_ECHO` (`false` by default).
+- `ACTIVATION_API_TIMEOUT_SECONDS`.
+- `BLOCKCHAIN_EXPLORER_BASE_URLS` / `BLOCKCHAIN_EXPLORER_API_KEYS`.
+- `BLOCKCHAIN_SUPPORTED_CRYPTO_OPTIONS`.
+- `BLOCKCHAIN_AMOUNT_TOLERANCE`.
+
+All environment variables are documented in `.env.example`.
+
+## 2) Local setup (step-by-step)
+
+### Step A - install dependencies
 
 ```bash
 python -m venv .venv
@@ -87,151 +39,102 @@ source .venv/bin/activate
 pip install -e .[dev]
 ```
 
-### 2) Configure environment (optional)
-
-Defaults are development-friendly; override with `.env`:
-
-```env
-DATABASE_URL=sqlite:///./freemoney.db
-TELEGRAM_BOT_TOKEN=your_bot_token_here
-BLOCKCHAIN_EXPLORER_BASE_URLS={"bsc":"https://api.bscscan.com/api"}
-BLOCKCHAIN_EXPLORER_API_KEYS={"bsc":"your_bscscan_api_key"}
-BLOCKCHAIN_AMOUNT_TOLERANCE=0
-BLOCKCHAIN_SUPPORTED_CRYPTO_OPTIONS={"bsc_usdt":{"network":"bsc","display_label":"USDT BSC (BEP20)","token_symbol":"usdt","token_contract":"0x55d398326f99059ff775485246999027b3197955","token_decimals":18,"recipient_wallet":"0xyour_deposit_wallet","is_native_coin":false}}
-ACTIVATION_API_BASE_URL=http://127.0.0.1:9000
-ACTIVATION_API_TIMEOUT_SECONDS=10
-```
-
-### 3) Run migrations
+### Step B - run database migrations
 
 ```bash
 alembic upgrade head
 ```
 
-### 4) Run API skeleton
+### Step C - optional development seed (demo-only)
+
+```bash
+freemoney-seed-demo
+```
+
+This inserts development demo data (categories/products/demo user). Do not use in production.
+
+### Step D - run API / website
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Health endpoint:
+Open:
+- Activation page: `http://127.0.0.1:8000/activation`
+- API health: `http://127.0.0.1:8000/health`
+- API readiness (DB check): `http://127.0.0.1:8000/health/ready`
 
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-### 5) Run Telegram bot polling
+### Step E - run Telegram bot
 
 ```bash
 python -m app.bot.main
 ```
 
-This starts aiogram polling with routers from `app/bot/router.py`.
-
-### 6) Run tests
+### Step F - run tests
 
 ```bash
 pytest
 ```
 
+## 3) Command reference (separated)
 
-## Activation website (MVP product page)
+- **Bot run command**: `python -m app.bot.main`
+- **Website/API run command**: `uvicorn app.main:app --reload`
+- **Migration command**: `alembic upgrade head`
+- **Test command**: `pytest`
+- **Dev seed command**: `freemoney-seed-demo`
 
-A dedicated activation website is now included as a minimal user-facing page (not a full store).
+## 4) Smoke-test checklist
 
-- URL: `http://127.0.0.1:8000/activation`
-- Root (`/`) redirects to `/activation`
-- UI includes RU/EN toggle, polished activation form, validation, loading state, and result card
+After setup, verify:
 
-### Activation flow
+1. Bot starts without crash (`python -m app.bot.main`).
+2. Website/API starts (`uvicorn app.main:app --reload`).
+3. Migrations apply cleanly (`alembic upgrade head`).
+4. Category browsing works in Telegram bot.
+5. Reservation works in Telegram bot and creates reservation/order.
+6. Top-up request creation works (crypto and/or bybit path).
+7. Activation page opens and validates invalid token JSON input.
+8. Activation submit calls backend flow and returns success/pending/failed state.
+9. Health endpoints return OK (`/health`, `/health/ready`).
 
-The website orchestrates the existing activation API flow in this strict order:
+## 5) Logging and error visibility
 
-1. `check_cdk`
-2. `check_token`
-3. `create_task`
-4. `check_task`
+- Logging is centralized via `LOG_LEVEL` and structured message format.
+- Important MVP flows now emit practical logs:
+  - reservation creation/conflicts/payment outcome,
+  - top-up creation and verification,
+  - activation result transitions.
+- User-facing responses remain safe and do not expose internal exceptions.
 
-Displayed status transitions:
+## 6) Docker (minimal MVP deploy option)
 
-- checking code
-- checking token
-- creating activation
-- activation in progress
-- activation success / failed
-
-### How this relates to Telegram bot
-
-The Telegram bot remains the primary shop/sales surface.
-The website is a companion activation-only experience where a user pastes code/token received from the Telegram flow and completes activation.
-
-### Running locally
-
-1. Start backend app:
+### Build and run with docker compose
 
 ```bash
-uvicorn app.main:app --reload
+docker compose up --build
 ```
 
-2. Open:
+This starts:
+- `db` (PostgreSQL 16)
+- `app` (FastAPI app, auto-runs `alembic upgrade head` before start)
 
-```text
-http://127.0.0.1:8000/activation
-```
+Then open `http://127.0.0.1:8000/activation`.
 
-3. Ensure `ACTIVATION_API_BASE_URL` points to the activation API service that supports:
+## 7) Production readiness notes (initial MVP)
 
-- `GET /check_cdk?code=<activation_code>`
-- `POST /check_token` with JSON body `{ "token": <token_object> }`
-- `POST /create_task` with JSON body `{ "code_hash": "<code_hash>", "user_token": <token_object> }`
-- `GET /check_task/<task_id>`
+Before first real production launch:
+- Replace all placeholder secrets and wallet addresses in `.env`.
+- Use managed Postgres and secure network rules.
+- Set `APP_ENV=prod`, `LOG_LEVEL=INFO` (or `WARNING`).
+- Keep demo seed disabled in production operations.
+- Confirm real activation API contract and timeout behavior.
+- Perform full smoke checklist in a staging environment.
 
+## 8) What this change set intentionally does NOT do
 
-Token input handling on the website:
+- No major product-feature expansion.
+- No heavy infrastructure orchestration.
+- No aggressive architecture refactor.
 
-- user enters token JSON in the form
-- backend parses it into an object/dict before calling activation API
-- invalid JSON or non-object JSON is rejected with a user-friendly form error
-
-Response compatibility in service mapping:
-
-- accepts boolean style (`ok`, `success`, `valid`)
-- accepts code style (`code == 0` as success)
-- accepts status style (`success` / `pending` / `failed`, including common variants)
-
-## Notes on business rules coverage
-
-- Product statuses: `available`, `reserved`, `sold`.
-- Expired reservations are released by `release_expired_reservations()`.
-- Failed/expired payments return products to `available` via `apply_payment_status()`.
-- Sales/reservations/payment failures are logged in `activity_logs`.
-
-## Crypto TXID verification flow (real on-chain check)
-
-- Scope implemented now: `CRYPTO_TXID` request verification on EVM-compatible chains, with BSC configured first.
-- On `verify_crypto_txid_top_up(..., target_status=VERIFIED)`:
-  1. Existing safe status checks run first (method, status transition, duplicate credit guard).
-  2. Service requests transaction + receipt from configured explorer API (BscScan-compatible proxy endpoints).
-  3. Verification requires:
-     - tx exists,
-     - tx receipt status is successful (`0x1`),
-     - network + token match a configured supported crypto option,
-     - recipient wallet matches the option's `recipient_wallet`,
-     - for token transfers, receipt log contract address matches option `token_contract`,
-     - for token transfers, amount is decoded with option `token_decimals`,
-     - amount is at least requested amount (plus optional tolerance).
-  4. Only then request becomes `VERIFIED`, user balance is credited once, and verified on-chain fields are persisted.
-- On-chain verification failures keep the request safe (not credited, no terminal status transition) and store a verification note with failure reason.
-
-### Supported crypto options config
-
-- `BLOCKCHAIN_SUPPORTED_CRYPTO_OPTIONS` is the source of truth for supported deposits.
-- Each option must include:
-  - `network` (e.g. `bsc`)
-  - `display_label` (shown to user in bot)
-  - `token_symbol` (`usdt` for token flow, null for native coin flow)
-  - `token_contract` (required for token flow)
-  - `token_decimals`
-  - `recipient_wallet`
-  - `is_native_coin` (`false` for BSC USDT BEP20)
-- For BSC USDT verification specifically, configure real BEP20 USDT contract and your deposit wallet in this option.
+Focus is MVP stability, clarity, safe configuration, and deployment readiness.

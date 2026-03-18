@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -17,6 +18,8 @@ from app.models.order import Order
 from app.models.payment import Payment
 from app.models.product_pool import ProductPool
 from app.models.reservation import Reservation
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -50,6 +53,7 @@ def reserve_product_for_user(
     ).all()
 
     if not candidate_ids:
+        logger.info("Reservation failed: no stock | user_id=%s category_id=%s", user_id, category_id)
         return ReservationAttemptResult(ok=False, reason="no_stock_available")
 
     reserved_product_id: int | None = None
@@ -71,6 +75,7 @@ def reserve_product_for_user(
 
     if reserved_product_id is None:
         db.rollback()
+        logger.warning("Reservation conflict | user_id=%s category_id=%s", user_id, category_id)
         return ReservationAttemptResult(
             ok=False,
             reason="reservation_conflict" if had_conflict else "no_stock_available",
@@ -108,6 +113,13 @@ def reserve_product_for_user(
     db.commit()
     db.refresh(reservation)
     db.refresh(order)
+    logger.info(
+        "Reservation created | user_id=%s category_id=%s reservation_id=%s order_id=%s",
+        user_id,
+        category_id,
+        reservation.id,
+        order.id,
+    )
     return ReservationAttemptResult(ok=True, reason="reserved", reservation=reservation, order=order)
 
 
@@ -136,6 +148,8 @@ def release_expired_reservations(db: Session, now: datetime | None = None) -> in
         )
 
     db.commit()
+    if expired:
+        logger.info("Expired reservations released | count=%s", len(expired))
     return len(expired)
 
 
@@ -169,6 +183,7 @@ def apply_payment_status(db: Session, payment: Payment, new_status: PaymentStatu
                 payload={"product_id": order.product_id, "payment_id": payment.id},
             )
         )
+        logger.info("Payment success and delivery completed | order_id=%s payment_id=%s", order.id, payment.id)
     elif new_status in {PaymentStatus.FAILED, PaymentStatus.EXPIRED}:
         order.status = OrderStatus.CANCELED
         reservation.status = ReservationStatus.CANCELED
@@ -182,5 +197,6 @@ def apply_payment_status(db: Session, payment: Payment, new_status: PaymentStatu
                 payload={"product_id": order.product_id, "payment_id": payment.id, "status": new_status.value},
             )
         )
+        logger.warning("Payment failed/expired | order_id=%s payment_id=%s status=%s", order.id, payment.id, new_status.value)
 
     db.commit()

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
 from app.activation.client import ActivationAPIClient, ActivationAPIResponse, ActivationClientError
+
+logger = logging.getLogger(__name__)
 
 
 class ActivationStage(str, Enum):
@@ -104,6 +107,7 @@ class ActivationFlowService:
             )
 
             if task_status == ActivationStatus.SUCCESS:
+                logger.info("Activation completed successfully | task_id=%s", task_id)
                 return ActivationFlowResult(
                     status=ActivationStatus.SUCCESS,
                     steps=steps,
@@ -111,6 +115,7 @@ class ActivationFlowService:
                     task_id=task_id,
                 )
             if task_status == ActivationStatus.PENDING:
+                logger.info("Activation still pending | task_id=%s", task_id)
                 return ActivationFlowResult(
                     status=ActivationStatus.PENDING,
                     steps=steps,
@@ -119,6 +124,7 @@ class ActivationFlowService:
                 )
 
             reason = task_check.message or "Activation failed at task execution stage."
+            logger.warning("Activation task failed | task_id=%s reason=%s", task_id, reason)
             return ActivationFlowResult(
                 status=ActivationStatus.FAILED,
                 steps=steps,
@@ -127,6 +133,7 @@ class ActivationFlowService:
                 failure_reason=reason,
             )
         except ActivationClientError:
+            logger.warning("Activation API client error", exc_info=True)
             steps.append(
                 ActivationStepResult(
                     stage=ActivationStage.CHECK_TASK,
@@ -139,6 +146,14 @@ class ActivationFlowService:
                 steps=steps,
                 message="Activation service error.",
                 failure_reason="Activation service is temporarily unavailable. Please try again.",
+            )
+        except Exception:
+            logger.exception("Unexpected activation flow error")
+            return ActivationFlowResult(
+                status=ActivationStatus.FAILED,
+                steps=steps,
+                message="Activation service error.",
+                failure_reason="Unexpected activation issue. Please retry shortly.",
             )
 
 

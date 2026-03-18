@@ -76,6 +76,8 @@ TEXTS: dict[str, dict[Language, str]] = {
     "products_back_to_category": {Language.RU: "⬅️ К категории", Language.EN: "⬅️ Category"},
     "products_back_to_products": {Language.RU: "⬅️ К товарам", Language.EN: "⬅️ Back to products"},
     "products_buy": {Language.RU: "🛒 Купить", Language.EN: "🛒 Buy"},
+    "products_open_product": {Language.RU: "🔎 Открыть", Language.EN: "🔎 Open"},
+    "products_reserve_item": {Language.RU: "🛒 Резерв", Language.EN: "🛒 Reserve"},
     "products_category_not_found": {
         Language.RU: "Категория не найдена.",
         Language.EN: "Category not found.",
@@ -111,6 +113,14 @@ TEXTS: dict[str, dict[Language, str]] = {
     "products_card_line": {
         Language.RU: "{idx}. Товар #{product_id} · цена {price}",
         Language.EN: "{idx}. Product #{product_id} · price {price}",
+    },
+    "products_product_view": {
+        Language.RU: "Товар #{product_id}\nКатегория: {title}\nПуть: {breadcrumb}\nЦена: {price}\nСтатус: доступен",
+        Language.EN: "Product #{product_id}\nCategory: {title}\nPath: {breadcrumb}\nPrice: {price}\nStatus: available",
+    },
+    "products_product_not_available": {
+        Language.RU: "Товар уже недоступен. Выберите другой из списка.",
+        Language.EN: "This product is no longer available. Please choose another one.",
     },
     "products_reservation_success": {
         Language.RU: "Резерв создан ✅\nКатегория: {title}\nReservation ID: {reservation_id}\nOrder ID: {order_id}\nЦена: {price}\n\nСледующий шаг: оплата (будет добавлена на следующем этапе).",

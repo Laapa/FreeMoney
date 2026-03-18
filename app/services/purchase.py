@@ -39,10 +39,11 @@ def reserve_product_for_user(
     ttl_minutes: int = 15,
     now: datetime | None = None,
     max_attempts: int = 5,
+    product_id: int | None = None,
 ) -> ReservationAttemptResult:
     current_time = now or datetime.utcnow()
 
-    candidate_ids = db.scalars(
+    query = (
         select(ProductPool.id)
         .where(
             ProductPool.category_id == category_id,
@@ -50,7 +51,11 @@ def reserve_product_for_user(
         )
         .order_by(ProductPool.id)
         .limit(max_attempts)
-    ).all()
+    )
+    if product_id is not None:
+        query = query.where(ProductPool.id == product_id).limit(1)
+
+    candidate_ids = db.scalars(query).all()
 
     if not candidate_ids:
         logger.info("Reservation failed: no stock | user_id=%s category_id=%s", user_id, category_id)

@@ -26,6 +26,14 @@ def buy_callback(category_id: int) -> str:
     return f"prod:buy:{category_id}"
 
 
+def open_product_callback(category_id: int, product_id: int) -> str:
+    return f"prod:item:{category_id}:{product_id}"
+
+
+def buy_product_callback(category_id: int, product_id: int) -> str:
+    return f"prod:itembuy:{category_id}:{product_id}"
+
+
 def back_callback(parent_id: int | None) -> str:
     if parent_id is None:
         return CALLBACK_ROOT
@@ -77,8 +85,18 @@ def category_view_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def product_list_keyboard(*, category: CategoryView, can_buy: bool, language: Language) -> InlineKeyboardMarkup:
+def product_list_keyboard(
+    *,
+    category: CategoryView,
+    can_buy: bool,
+    language: Language,
+    product_rows: list[list[dict[str, str]]] | None = None,
+) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+    if product_rows:
+        for row in product_rows:
+            rows.append([InlineKeyboardButton(text=item["text"], callback_data=item["callback_data"]) for item in row])
+
     if can_buy:
         rows.append([InlineKeyboardButton(text=t("products_buy", language), callback_data=buy_callback(category.id))])
 
@@ -90,6 +108,23 @@ def product_list_keyboard(*, category: CategoryView, can_buy: bool, language: La
     )
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def product_card_keyboard(*, category_id: int, product_id: int, language: Language) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t("products_buy", language),
+                    callback_data=buy_product_callback(category_id, product_id),
+                )
+            ],
+            [
+                InlineKeyboardButton(text=t("products_back_to_products", language), callback_data=products_callback(category_id)),
+                InlineKeyboardButton(text=t("products_main_menu", language), callback_data=CALLBACK_MENU),
+            ],
+        ]
+    )
 
 
 def reservation_success_keyboard(*, category_id: int, language: Language) -> InlineKeyboardMarkup:

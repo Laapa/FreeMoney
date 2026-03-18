@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from app.activation.client import ActivationAPIClient, ActivationAPIResponse, ActivationClientError
 
@@ -39,7 +40,7 @@ class ActivationFlowService:
     def __init__(self, client: ActivationAPIClient) -> None:
         self._client = client
 
-    def run(self, *, cdk: str, token_input: str) -> ActivationFlowResult:
+    def run(self, *, cdk: str, token_data: dict[str, Any]) -> ActivationFlowResult:
         steps: list[ActivationStepResult] = []
 
         try:
@@ -53,9 +54,21 @@ class ActivationFlowService:
                     message="Activation code validation failed.",
                     failure_reason=message,
                 )
+
+            code_hash = _extract_code_hash(cdk_response)
+            if not code_hash:
+                message = "Activation code hash is missing in API response."
+                steps.append(ActivationStepResult(stage=ActivationStage.CHECK_CDK, ok=False, message=message))
+                return ActivationFlowResult(
+                    status=ActivationStatus.FAILED,
+                    steps=steps,
+                    message="Activation code validation failed.",
+                    failure_reason=message,
+                )
+
             steps.append(ActivationStepResult(stage=ActivationStage.CHECK_CDK, ok=True, message="Activation code confirmed."))
 
-            token_response = self._client.check_token(token_input)
+            token_response = self._client.check_token(token_data)
             if not _response_ok(token_response):
                 message = token_response.message or "Account token data is invalid."
                 steps.append(ActivationStepResult(stage=ActivationStage.CHECK_TOKEN, ok=False, message=message))
@@ -67,7 +80,7 @@ class ActivationFlowService:
                 )
             steps.append(ActivationStepResult(stage=ActivationStage.CHECK_TOKEN, ok=True, message="Token payload accepted."))
 
-            task_response = self._client.create_task(cdk=cdk, token=token_input)
+            task_response = self._client.create_task(code_hash=code_hash, user_token=token_data)
             task_id = _extract_task_id(task_response)
             if not task_id:
                 message = task_response.message or "Activation task could not be created."
@@ -132,13 +145,11 @@ class ActivationFlowService:
 def _response_ok(response: ActivationAPIResponse) -> bool:
     payload = response.payload
 
-    # Original client/API may return top-level booleans.
     for key in ("ok", "success", "valid"):
         value = payload.get(key)
         if isinstance(value, bool):
             return value
 
-    # Some responses use numeric/code semantics.
     code = payload.get("code")
     if isinstance(code, int):
         return code == 0
@@ -150,6 +161,23 @@ def _response_ok(response: ActivationAPIResponse) -> bool:
         return False
 
     return bool(payload.get("data"))
+
+
+def _extract_code_hash(response: ActivationAPIResponse) -> str | None:
+    payload = response.payload
+    for key in ("code_hash", "codeHash", "hash"):
+        value = payload.get(key)
+        if value:
+            return str(value)
+
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key in ("code_hash", "codeHash", "hash"):
+            value = data.get(key)
+            if value:
+                return str(value)
+
+    return None
 
 
 def _extract_task_id(response: ActivationAPIResponse) -> str | None:
@@ -177,7 +205,6 @@ def _extract_task_id(response: ActivationAPIResponse) -> str | None:
 def _extract_task_status(response: ActivationAPIResponse) -> ActivationStatus:
     payload = response.payload
 
-    # check_task may wrap task object in data/task.
     task_payload = payload
     if isinstance(payload.get("data"), dict):
         task_payload = payload["data"]

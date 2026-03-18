@@ -26,28 +26,28 @@ class ActivationAPIResponse:
 
 
 class ActivationAPIClient:
-    """HTTP client that mirrors the original activation API contract.
+    """HTTP client that mirrors the original activation API contract exactly.
 
     Contract:
-    - GET /check_cdk?cdk=<code>
-    - POST /check_token with JSON {"token": "..."}
-    - POST /create_task with JSON {"cdk": "...", "token": "..."}
-    - GET /check_task/<task_id>
+    - check_cdk(code) -> GET /check_cdk?code=...
+    - check_token(token_dict) -> POST /check_token with {"token": <dict>}
+    - create_task(code_hash, user_token) -> POST /create_task with {"code_hash": ..., "user_token": ...}
+    - check_task(task_id) -> GET /check_task/<task_id>
     """
 
     def __init__(self, *, base_url: str, timeout_seconds: float = 10.0) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
 
-    def check_cdk(self, cdk: str) -> ActivationAPIResponse:
-        query = parse.urlencode({"cdk": cdk})
+    def check_cdk(self, code: str) -> ActivationAPIResponse:
+        query = parse.urlencode({"code": code})
         return self._request("GET", f"/check_cdk?{query}")
 
-    def check_token(self, token: str) -> ActivationAPIResponse:
-        return self._request("POST", "/check_token", {"token": token})
+    def check_token(self, token_dict: dict[str, Any]) -> ActivationAPIResponse:
+        return self._request("POST", "/check_token", {"token": token_dict})
 
-    def create_task(self, *, cdk: str, token: str) -> ActivationAPIResponse:
-        return self._request("POST", "/create_task", {"cdk": cdk, "token": token})
+    def create_task(self, *, code_hash: str, user_token: dict[str, Any]) -> ActivationAPIResponse:
+        return self._request("POST", "/create_task", {"code_hash": code_hash, "user_token": user_token})
 
     def check_task(self, task_id: str) -> ActivationAPIResponse:
         safe_task_id = parse.quote(task_id, safe="")

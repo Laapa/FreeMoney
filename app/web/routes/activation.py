@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -9,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from app.activation.client import ActivationAPIClient
 from app.core.config import get_settings
 from app.services.activation import ActivationFlowResult, ActivationFlowService, ActivationStatus
+from app.web.token_parser import parse_token_json_object
 
 router = APIRouter(tags=["activation-site"])
 templates = Jinja2Templates(directory="app/web/templates")
@@ -20,13 +20,13 @@ TRANSLATIONS = {
         "cdk_label": "Activation code (CDK)",
         "cdk_hint": "Paste the code you received from the Telegram shop.",
         "token_label": "Token / account JSON",
-        "token_hint": "Use either plain token text or JSON payload from your account panel.",
+        "token_hint": "Paste token JSON from your account panel.",
         "submit": "Start activation",
         "reset": "Reset form",
         "lang_toggle": "RU",
         "validation_cdk": "Activation code is required.",
-        "validation_token": "Token/account input is required.",
-        "validation_token_json": "Token JSON looks invalid. Please fix formatting.",
+        "validation_token": "Token/account JSON input is required.",
+        "validation_token_json": "Token JSON is invalid. Please paste a valid JSON object.",
         "state_success": "Activation successful",
         "state_pending": "Activation in progress",
         "state_failed": "Activation failed",
@@ -37,13 +37,13 @@ TRANSLATIONS = {
         "cdk_label": "Код активации (CDK)",
         "cdk_hint": "Вставьте код, который вы получили в Telegram-магазине.",
         "token_label": "Токен / JSON аккаунта",
-        "token_hint": "Можно ввести обычный токен или JSON из вашего аккаунта.",
+        "token_hint": "Вставьте JSON токена из вашего аккаунта.",
         "submit": "Запустить активацию",
         "reset": "Очистить форму",
         "lang_toggle": "EN",
         "validation_cdk": "Введите код активации.",
-        "validation_token": "Введите токен или JSON аккаунта.",
-        "validation_token_json": "Похоже, JSON токена введен с ошибкой формата.",
+        "validation_token": "Введите JSON токена/аккаунта.",
+        "validation_token_json": "Некорректный JSON токена. Вставьте валидный JSON-объект.",
         "state_success": "Активация успешна",
         "state_pending": "Активация выполняется",
         "state_failed": "Активация не выполнена",
@@ -92,17 +92,18 @@ async def activation_submit(
 
     if not form["cdk"]:
         form_errors["cdk"] = text["validation_cdk"]
+
+    parsed_token: dict[str, Any] | None = None
     if not form["token_input"]:
         form_errors["token_input"] = text["validation_token"]
-    elif _looks_like_json(form["token_input"]):
-        try:
-            json.loads(form["token_input"])
-        except json.JSONDecodeError:
-            form_errors["token_input"] = text["validation_token_json"]
+    else:
+        parsed_token, token_error = parse_token_json_object(form["token_input"], text["validation_token_json"])
+        if token_error:
+            form_errors["token_input"] = token_error
 
     flow_result: ActivationFlowResult | None = None
-    if not form_errors:
-        flow_result = service.run(cdk=form["cdk"], token_input=form["token_input"])
+    if not form_errors and parsed_token is not None:
+        flow_result = service.run(cdk=form["cdk"], token_data=parsed_token)
 
     return templates.TemplateResponse(
         request,
@@ -121,11 +122,6 @@ async def activation_submit(
         },
     )
 
-
-
-def _looks_like_json(raw_value: str) -> bool:
-    trimmed = raw_value.strip()
-    return (trimmed.startswith("{") and trimmed.endswith("}")) or (trimmed.startswith("[") and trimmed.endswith("]"))
 
 def _normalize_lang(lang: str) -> str:
     return "ru" if lang.lower() == "ru" else "en"

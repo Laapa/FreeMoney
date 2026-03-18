@@ -20,13 +20,13 @@ class DummyResponse:
         return None
 
 
-def test_check_cdk_uses_get_with_query(monkeypatch) -> None:
+def test_check_cdk_uses_get_with_code_query_param(monkeypatch) -> None:
     captured = {}
 
     def fake_urlopen(req, timeout):
         captured["url"] = req.full_url
         captured["method"] = req.get_method()
-        return DummyResponse({"code": 0})
+        return DummyResponse({"code": 0, "data": {"code_hash": "hash-1"}})
 
     monkeypatch.setattr("app.activation.client.request.urlopen", fake_urlopen)
 
@@ -34,10 +34,10 @@ def test_check_cdk_uses_get_with_query(monkeypatch) -> None:
     client.check_cdk("AB C")
 
     assert captured["method"] == "GET"
-    assert captured["url"] == "https://activation.example/check_cdk?cdk=AB+C"
+    assert captured["url"] == "https://activation.example/check_cdk?code=AB+C"
 
 
-def test_check_token_uses_post_token_payload(monkeypatch) -> None:
+def test_check_token_sends_token_object_dict(monkeypatch) -> None:
     captured = {}
 
     def fake_urlopen(req, timeout):
@@ -49,14 +49,14 @@ def test_check_token_uses_post_token_payload(monkeypatch) -> None:
     monkeypatch.setattr("app.activation.client.request.urlopen", fake_urlopen)
 
     client = ActivationAPIClient(base_url="https://activation.example")
-    client.check_token("token-value")
+    client.check_token({"uid": "42", "session": "abc"})
 
     assert captured["method"] == "POST"
     assert captured["url"] == "https://activation.example/check_token"
-    assert captured["body"] == {"token": "token-value"}
+    assert captured["body"] == {"token": {"uid": "42", "session": "abc"}}
 
 
-def test_create_task_uses_original_payload_shape(monkeypatch) -> None:
+def test_create_task_sends_code_hash_and_user_token(monkeypatch) -> None:
     captured = {}
 
     def fake_urlopen(req, timeout):
@@ -68,11 +68,11 @@ def test_create_task_uses_original_payload_shape(monkeypatch) -> None:
     monkeypatch.setattr("app.activation.client.request.urlopen", fake_urlopen)
 
     client = ActivationAPIClient(base_url="https://activation.example")
-    client.create_task(cdk="CDK-1", token='{"account":"x"}')
+    client.create_task(code_hash="hash-1", user_token={"uid": "42"})
 
     assert captured["method"] == "POST"
     assert captured["url"] == "https://activation.example/create_task"
-    assert captured["body"] == {"cdk": "CDK-1", "token": '{"account":"x"}'}
+    assert captured["body"] == {"code_hash": "hash-1", "user_token": {"uid": "42"}}
 
 
 def test_check_task_uses_get_with_path_task_id(monkeypatch) -> None:

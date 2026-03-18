@@ -181,11 +181,17 @@ http://127.0.0.1:8000/activation
 
 3. Ensure `ACTIVATION_API_BASE_URL` points to the activation API service that supports:
 
-- `GET /check_cdk?cdk=<activation_code>`
-- `POST /check_token` with JSON body `{ "token": "<raw token or token-json-string>" }`
-- `POST /create_task` with JSON body `{ "cdk": "<activation_code>", "token": "<raw token or token-json-string>" }`
+- `GET /check_cdk?code=<activation_code>`
+- `POST /check_token` with JSON body `{ "token": <token_object> }`
+- `POST /create_task` with JSON body `{ "code_hash": "<code_hash>", "user_token": <token_object> }`
 - `GET /check_task/<task_id>`
 
+
+Token input handling on the website:
+
+- user enters token JSON in the form
+- backend parses it into an object/dict before calling activation API
+- invalid JSON or non-object JSON is rejected with a user-friendly form error
 
 Response compatibility in service mapping:
 

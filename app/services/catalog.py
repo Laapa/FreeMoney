@@ -31,11 +31,20 @@ def _category_title(category: Category, language: Language) -> str:
 
 
 def _category_price(db: Session, *, user_id: int, category_id: int) -> Decimal | None:
-    return db.scalar(
+    personal_price = db.scalar(
         select(UserCategoryPrice.price).where(
             UserCategoryPrice.user_id == user_id,
             UserCategoryPrice.category_id == category_id,
         )
+    )
+    if personal_price is not None:
+        return personal_price
+
+    return db.scalar(
+        select(UserCategoryPrice.price)
+        .where(UserCategoryPrice.category_id == category_id)
+        .order_by(UserCategoryPrice.id.asc())
+        .limit(1)
     )
 
 
@@ -159,3 +168,21 @@ def list_product_cards(
     ).all()
 
     return [ProductCard(product_id=product.id) for product in products]
+
+
+def get_product_card(
+    db: Session,
+    *,
+    category_id: int,
+    product_id: int,
+) -> ProductCard | None:
+    found_product_id = db.scalar(
+        select(ProductPool.id).where(
+            ProductPool.id == product_id,
+            ProductPool.category_id == category_id,
+            ProductPool.status == ProductStatus.AVAILABLE,
+        )
+    )
+    if found_product_id is None:
+        return None
+    return ProductCard(product_id=found_product_id)

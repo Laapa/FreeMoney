@@ -53,6 +53,12 @@ freemoney-seed-demo
 
 This inserts development demo data (categories/products/demo user). Do not use in production.
 
+Demo seed specifics (for local manual catalog testing):
+- Categories: `Games` root + `Steam` and `Xbox` subcategories.
+- Products: demo keys in `Steam` and `Xbox` with `AVAILABLE` status.
+- Demo pricing rows in `user_category_prices` for `Steam` and `Xbox`.
+- Catalog price resolution first tries the current Telegram user's personal row, then falls back to the seeded category price if user-specific pricing is missing.
+
 ### Step D - run API / website
 
 ```bash

@@ -5,6 +5,7 @@ from app.db.base import Base
 from app.models.category import Category
 from app.models.product_pool import ProductPool
 from app.models.user import User
+from app.models.user_category_price import UserCategoryPrice
 from app.scripts.seed_demo_data import seed_demo_data
 
 
@@ -21,7 +22,9 @@ def test_seed_demo_data_is_idempotent(monkeypatch) -> None:
         categories = db.scalars(select(Category)).all()
         products = db.scalars(select(ProductPool)).all()
         users = db.scalars(select(User).where(User.telegram_id == 999000111)).all()
+        prices = db.scalars(select(UserCategoryPrice)).all()
 
     assert len(categories) >= 3
     assert len(products) >= 3
     assert len(users) == 1
+    assert len(prices) >= 2

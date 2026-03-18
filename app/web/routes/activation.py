@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -27,6 +26,7 @@ TRANSLATIONS = {
         "lang_toggle": "RU",
         "validation_cdk": "Activation code is required.",
         "validation_token": "Token/account input is required.",
+        "validation_token_json": "Token JSON looks invalid. Please fix formatting.",
         "state_success": "Activation successful",
         "state_pending": "Activation in progress",
         "state_failed": "Activation failed",
@@ -43,6 +43,7 @@ TRANSLATIONS = {
         "lang_toggle": "EN",
         "validation_cdk": "Введите код активации.",
         "validation_token": "Введите токен или JSON аккаунта.",
+        "validation_token_json": "Похоже, JSON токена введен с ошибкой формата.",
         "state_success": "Активация успешна",
         "state_pending": "Активация выполняется",
         "state_failed": "Активация не выполнена",
@@ -93,11 +94,15 @@ async def activation_submit(
         form_errors["cdk"] = text["validation_cdk"]
     if not form["token_input"]:
         form_errors["token_input"] = text["validation_token"]
+    elif _looks_like_json(form["token_input"]):
+        try:
+            json.loads(form["token_input"])
+        except json.JSONDecodeError:
+            form_errors["token_input"] = text["validation_token_json"]
 
     flow_result: ActivationFlowResult | None = None
     if not form_errors:
-        token_payload = _parse_token_payload(form["token_input"])
-        flow_result = service.run(cdk=form["cdk"], token_payload=token_payload)
+        flow_result = service.run(cdk=form["cdk"], token_input=form["token_input"])
 
     return templates.TemplateResponse(
         request,
@@ -117,17 +122,10 @@ async def activation_submit(
     )
 
 
-def _parse_token_payload(raw_token_input: str) -> dict[str, Any]:
-    try:
-        parsed = json.loads(raw_token_input)
-    except json.JSONDecodeError:
-        return {"token": raw_token_input}
 
-    if isinstance(parsed, dict):
-        return parsed
-
-    return {"token": raw_token_input}
-
+def _looks_like_json(raw_value: str) -> bool:
+    trimmed = raw_value.strip()
+    return (trimmed.startswith("{") and trimmed.endswith("}")) or (trimmed.startswith("[") and trimmed.endswith("]"))
 
 def _normalize_lang(lang: str) -> str:
     return "ru" if lang.lower() == "ru" else "en"

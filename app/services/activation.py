@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 from app.activation.client import ActivationAPIClient, ActivationAPIResponse, ActivationClientError
 
@@ -40,7 +39,7 @@ class ActivationFlowService:
     def __init__(self, client: ActivationAPIClient) -> None:
         self._client = client
 
-    def run(self, *, cdk: str, token_payload: dict[str, Any]) -> ActivationFlowResult:
+    def run(self, *, cdk: str, token_input: str) -> ActivationFlowResult:
         steps: list[ActivationStepResult] = []
 
         try:
@@ -56,7 +55,7 @@ class ActivationFlowService:
                 )
             steps.append(ActivationStepResult(stage=ActivationStage.CHECK_CDK, ok=True, message="Activation code confirmed."))
 
-            token_response = self._client.check_token(token_payload)
+            token_response = self._client.check_token(token_input)
             if not _response_ok(token_response):
                 message = token_response.message or "Account token data is invalid."
                 steps.append(ActivationStepResult(stage=ActivationStage.CHECK_TOKEN, ok=False, message=message))
@@ -68,7 +67,7 @@ class ActivationFlowService:
                 )
             steps.append(ActivationStepResult(stage=ActivationStage.CHECK_TOKEN, ok=True, message="Token payload accepted."))
 
-            task_response = self._client.create_task(cdk=cdk, token_payload=token_payload)
+            task_response = self._client.create_task(cdk=cdk, token=token_input)
             task_id = _extract_task_id(task_response)
             if not task_id:
                 message = task_response.message or "Activation task could not be created."
@@ -132,13 +131,25 @@ class ActivationFlowService:
 
 def _response_ok(response: ActivationAPIResponse) -> bool:
     payload = response.payload
-    candidates = ("ok", "success", "valid")
-    for key in candidates:
+
+    # Original client/API may return top-level booleans.
+    for key in ("ok", "success", "valid"):
         value = payload.get(key)
         if isinstance(value, bool):
             return value
+
+    # Some responses use numeric/code semantics.
+    code = payload.get("code")
+    if isinstance(code, int):
+        return code == 0
+
     status = str(payload.get("status", "")).lower()
-    return status in {"ok", "success", "valid"}
+    if status in {"ok", "success", "valid"}:
+        return True
+    if status in {"failed", "error", "invalid"}:
+        return False
+
+    return bool(payload.get("data"))
 
 
 def _extract_task_id(response: ActivationAPIResponse) -> str | None:
@@ -147,25 +158,48 @@ def _extract_task_id(response: ActivationAPIResponse) -> str | None:
         value = payload.get(key)
         if value:
             return str(value)
+
+    data = payload.get("data")
+    if isinstance(data, dict):
+        value = data.get("task_id") or data.get("id")
+        if value:
+            return str(value)
+
     nested = payload.get("task")
     if isinstance(nested, dict):
         value = nested.get("id") or nested.get("task_id")
         if value:
             return str(value)
+
     return None
 
 
 def _extract_task_status(response: ActivationAPIResponse) -> ActivationStatus:
     payload = response.payload
-    raw_status = str(payload.get("status", "")).lower()
-    if raw_status in {"success", "done", "completed"}:
+
+    # check_task may wrap task object in data/task.
+    task_payload = payload
+    if isinstance(payload.get("data"), dict):
+        task_payload = payload["data"]
+    elif isinstance(payload.get("task"), dict):
+        task_payload = payload["task"]
+
+    raw_status = str(task_payload.get("status", payload.get("status", ""))).lower()
+    if raw_status in {"success", "done", "completed", "finish", "finished"}:
         return ActivationStatus.SUCCESS
-    if raw_status in {"pending", "processing", "in_progress", "created"}:
+    if raw_status in {"pending", "processing", "in_progress", "created", "queued", "running"}:
         return ActivationStatus.PENDING
-    if raw_status in {"failed", "error"}:
+    if raw_status in {"failed", "error", "canceled", "cancelled"}:
         return ActivationStatus.FAILED
 
-    # Fallbacks for payloads that only expose booleans.
-    if payload.get("ok") is True or payload.get("success") is True:
+    if task_payload.get("ok") is True or task_payload.get("success") is True:
         return ActivationStatus.SUCCESS
+
+    code = task_payload.get("code", payload.get("code"))
+    if isinstance(code, int):
+        if code == 0:
+            return ActivationStatus.SUCCESS
+        if code == 102:
+            return ActivationStatus.PENDING
+
     return ActivationStatus.FAILED

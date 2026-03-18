@@ -16,10 +16,10 @@ class StubActivationClient:
     def check_cdk(self, cdk: str) -> ActivationAPIResponse:
         return ActivationAPIResponse(self.cdk_response)
 
-    def check_token(self, token_payload: dict) -> ActivationAPIResponse:
+    def check_token(self, token: str) -> ActivationAPIResponse:
         return ActivationAPIResponse(self.token_response)
 
-    def create_task(self, *, cdk: str, token_payload: dict) -> ActivationAPIResponse:
+    def create_task(self, *, cdk: str, token: str) -> ActivationAPIResponse:
         return ActivationAPIResponse(self.create_response)
 
     def check_task(self, task_id: str) -> ActivationAPIResponse:
@@ -29,14 +29,14 @@ class StubActivationClient:
 def test_activation_success_flow() -> None:
     service = ActivationFlowService(
         StubActivationClient(
-            cdk_response={"ok": True},
-            token_response={"valid": True},
-            create_response={"task_id": "task-1", "ok": True},
-            task_response={"status": "success", "message": "done"},
+            cdk_response={"code": 0, "msg": "ok"},
+            token_response={"code": 0, "msg": "ok"},
+            create_response={"code": 0, "data": {"task_id": "task-1"}},
+            task_response={"code": 0, "data": {"status": "completed"}},
         )
     )
 
-    result = service.run(cdk="ABC", token_payload={"token": "X"})
+    result = service.run(cdk="ABC", token_input="token-raw")
 
     assert result.status == ActivationStatus.SUCCESS
     assert result.task_id == "task-1"
@@ -46,14 +46,14 @@ def test_activation_success_flow() -> None:
 def test_activation_fails_for_invalid_cdk() -> None:
     service = ActivationFlowService(
         StubActivationClient(
-            cdk_response={"ok": False, "message": "Unknown CDK"},
-            token_response={"valid": True},
-            create_response={"task_id": "task-1"},
-            task_response={"status": "success"},
+            cdk_response={"code": 4001, "msg": "Unknown CDK"},
+            token_response={"code": 0, "msg": "ok"},
+            create_response={"code": 0, "data": {"task_id": "task-1"}},
+            task_response={"code": 0, "data": {"status": "completed"}},
         )
     )
 
-    result = service.run(cdk="BAD", token_payload={"token": "X"})
+    result = service.run(cdk="BAD", token_input="token-raw")
 
     assert result.status == ActivationStatus.FAILED
     assert result.failure_reason == "Unknown CDK"
@@ -62,14 +62,14 @@ def test_activation_fails_for_invalid_cdk() -> None:
 def test_activation_fails_for_invalid_token() -> None:
     service = ActivationFlowService(
         StubActivationClient(
-            cdk_response={"ok": True},
-            token_response={"valid": False, "message": "Invalid token"},
-            create_response={"task_id": "task-1"},
-            task_response={"status": "success"},
+            cdk_response={"code": 0, "msg": "ok"},
+            token_response={"code": 1002, "msg": "Invalid token"},
+            create_response={"code": 0, "data": {"task_id": "task-1"}},
+            task_response={"code": 0, "data": {"status": "completed"}},
         )
     )
 
-    result = service.run(cdk="ABC", token_payload={"token": "bad"})
+    result = service.run(cdk="ABC", token_input="bad-token")
 
     assert result.status == ActivationStatus.FAILED
     assert result.failure_reason == "Invalid token"
@@ -78,14 +78,14 @@ def test_activation_fails_for_invalid_token() -> None:
 def test_activation_fails_when_task_creation_fails() -> None:
     service = ActivationFlowService(
         StubActivationClient(
-            cdk_response={"ok": True},
-            token_response={"valid": True},
-            create_response={"ok": False, "message": "quota exceeded"},
-            task_response={"status": "success"},
+            cdk_response={"code": 0, "msg": "ok"},
+            token_response={"code": 0, "msg": "ok"},
+            create_response={"code": 5003, "msg": "quota exceeded"},
+            task_response={"code": 0, "data": {"status": "completed"}},
         )
     )
 
-    result = service.run(cdk="ABC", token_payload={"token": "ok"})
+    result = service.run(cdk="ABC", token_input="ok-token")
 
     assert result.status == ActivationStatus.FAILED
     assert result.failure_reason == "quota exceeded"
@@ -94,14 +94,14 @@ def test_activation_fails_when_task_creation_fails() -> None:
 def test_activation_pending_result() -> None:
     service = ActivationFlowService(
         StubActivationClient(
-            cdk_response={"ok": True},
-            token_response={"valid": True},
-            create_response={"task_id": "task-2"},
-            task_response={"status": "pending", "message": "still running"},
+            cdk_response={"code": 0, "msg": "ok"},
+            token_response={"code": 0, "msg": "ok"},
+            create_response={"code": 0, "data": {"task_id": "task-2"}},
+            task_response={"code": 0, "data": {"status": "pending"}},
         )
     )
 
-    result = service.run(cdk="ABC", token_payload={"token": "ok"})
+    result = service.run(cdk="ABC", token_input="ok-token")
 
     assert result.status == ActivationStatus.PENDING
     assert result.task_id == "task-2"
@@ -110,14 +110,14 @@ def test_activation_pending_result() -> None:
 def test_activation_failed_result_from_task_check() -> None:
     service = ActivationFlowService(
         StubActivationClient(
-            cdk_response={"ok": True},
-            token_response={"valid": True},
-            create_response={"task_id": "task-3"},
-            task_response={"status": "failed", "message": "account banned"},
+            cdk_response={"code": 0, "msg": "ok"},
+            token_response={"code": 0, "msg": "ok"},
+            create_response={"code": 0, "data": {"task_id": "task-3"}},
+            task_response={"code": 0, "data": {"status": "failed"}, "msg": "account banned"},
         )
     )
 
-    result = service.run(cdk="ABC", token_payload={"token": "ok"})
+    result = service.run(cdk="ABC", token_input="ok-token")
 
     assert result.status == ActivationStatus.FAILED
     assert result.failure_reason == "account banned"

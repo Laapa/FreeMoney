@@ -16,6 +16,8 @@ def create_top_up_request(
     method: TopUpMethod,
     amount: Decimal,
     currency: Currency,
+    requested_network: str | None = None,
+    requested_token: str | None = None,
     external_reference: str | None = None,
 ) -> TopUpRequest:
     initial_status = TopUpStatus.WAITING_TXID if method == TopUpMethod.CRYPTO_TXID else TopUpStatus.PENDING
@@ -25,6 +27,8 @@ def create_top_up_request(
         amount=amount,
         currency=currency,
         status=initial_status,
+        requested_network=requested_network,
+        requested_token=requested_token,
         external_reference=external_reference,
     )
     db.add(request)
@@ -40,6 +44,8 @@ def create_top_up_request(
                 "amount": str(request.amount),
                 "currency": request.currency.value,
                 "status": request.status.value,
+                "requested_network": request.requested_network,
+                "requested_token": request.requested_token,
             },
         )
     )

@@ -94,6 +94,10 @@ Defaults are development-friendly; override with `.env`:
 ```env
 DATABASE_URL=sqlite:///./freemoney.db
 TELEGRAM_BOT_TOKEN=your_bot_token_here
+BLOCKCHAIN_EXPLORER_BASE_URLS={"bsc":"https://api.bscscan.com/api"}
+BLOCKCHAIN_EXPLORER_API_KEYS={"bsc":"your_bscscan_api_key"}
+BLOCKCHAIN_EXPECTED_RECIPIENT_WALLETS={"bsc":"0xyour_deposit_wallet"}
+BLOCKCHAIN_AMOUNT_TOLERANCE=0
 ```
 
 ### 3) Run migrations
@@ -134,3 +138,19 @@ pytest
 - Expired reservations are released by `release_expired_reservations()`.
 - Failed/expired payments return products to `available` via `apply_payment_status()`.
 - Sales/reservations/payment failures are logged in `activity_logs`.
+
+## Crypto TXID verification flow (real on-chain check)
+
+- Scope implemented now: `CRYPTO_TXID` request verification on EVM-compatible chains, with BSC configured first.
+- On `verify_crypto_txid_top_up(..., target_status=VERIFIED)`:
+  1. Existing safe status checks run first (method, status transition, duplicate credit guard).
+  2. Service requests transaction + receipt from configured explorer API (BscScan-compatible proxy endpoints).
+  3. Verification requires:
+     - tx exists,
+     - tx receipt status is successful (`0x1`),
+     - recipient wallet matches `BLOCKCHAIN_EXPECTED_RECIPIENT_WALLETS[network]`,
+     - network matches request `requested_network`,
+     - if token is specified in request (`requested_token`), matching token transfer log must exist,
+     - amount is at least requested amount (plus optional tolerance).
+  4. Only then request becomes `VERIFIED`, user balance is credited once, and verified on-chain fields are persisted.
+- On-chain verification failures keep the request safe (not credited, no terminal status transition) and store a verification note with failure reason.

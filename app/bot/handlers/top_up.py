@@ -32,7 +32,9 @@ from app.services.users import get_user_by_telegram_id, init_or_update_user
 
 router = Router(name="top_up")
 
-NETWORK_CHOICES = {"top_up_network_trc20", "top_up_network_erc20"}
+NETWORK_TO_REQUEST_DETAILS = {
+    "top_up_network_bsc_usdt": {"network": "bsc", "token": "usdt"},
+}
 
 
 class TopUpStates(StatesGroup):
@@ -155,7 +157,7 @@ async def top_up_crypto_network(message: Message, state: FSMContext) -> None:
         return
 
     network_key = None
-    for candidate in NETWORK_CHOICES:
+    for candidate in NETWORK_TO_REQUEST_DETAILS:
         if message.text == t(candidate, user.language):
             network_key = candidate
             break
@@ -164,7 +166,12 @@ async def top_up_crypto_network(message: Message, state: FSMContext) -> None:
         await message.answer(t("top_up_network_invalid", user.language), reply_markup=top_up_network_keyboard(user.language))
         return
 
-    await state.update_data(network=t(network_key, user.language))
+    request_details = NETWORK_TO_REQUEST_DETAILS[network_key]
+    await state.update_data(
+        network=network_key,
+        requested_network=request_details["network"],
+        requested_token=request_details["token"],
+    )
     await state.set_state(TopUpStates.crypto_amount)
     await message.answer(t("top_up_enter_amount", user.language), reply_markup=top_up_cancel_keyboard(user.language))
 
@@ -192,7 +199,9 @@ async def top_up_crypto_amount(message: Message, state: FSMContext) -> None:
             method=TopUpMethod.CRYPTO_TXID,
             amount=amount,
             currency=user.currency,
-            external_reference=data.get("network"),
+            requested_network=data.get("requested_network"),
+            requested_token=data.get("requested_token"),
+            external_reference=t(data.get("network"), user.language) if data.get("network") else None,
         )
 
     await state.update_data(top_up_request_id=request.id)
@@ -378,6 +387,10 @@ def _format_top_up_request_details(request: TopUpRequest, language: Language) ->
     external_reference_value = request.external_reference or t("top_up_not_provided", language)
     reviewed_at_value = _format_optional_datetime(request.reviewed_at, language)
     verification_note_value = request.verification_note or t("top_up_not_provided", language)
+    verified_network_value = request.verified_network or t("top_up_not_provided", language)
+    verified_token_value = request.verified_token or t("top_up_not_provided", language)
+    verified_amount_value = request.verified_amount if request.verified_amount is not None else t("top_up_not_provided", language)
+    verified_recipient_value = request.verified_recipient or t("top_up_not_provided", language)
     return t("top_up_request_details", language).format(
         id=request.id,
         method=t(f"top_up_method_{'crypto' if request.method == TopUpMethod.CRYPTO_TXID else 'bybit'}", language),
@@ -390,6 +403,10 @@ def _format_top_up_request_details(request: TopUpRequest, language: Language) ->
         created_at=request.created_at.isoformat(sep=" ", timespec="seconds"),
         reviewed_at=reviewed_at_value,
         verification_note=verification_note_value,
+        verified_network=verified_network_value,
+        verified_token=verified_token_value,
+        verified_amount=verified_amount_value,
+        verified_recipient=verified_recipient_value,
     )
 
 

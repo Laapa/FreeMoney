@@ -9,6 +9,7 @@ from app.models.activity_log import ActivityLog
 from app.models.enums import Currency, LogEventType, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
 from app.models.user import User
+from app.services.blockchain.tx_verification import BlockchainVerificationResult, BlockchainVerificationSuccess
 from app.services.top_up_requests import create_top_up_request, set_bybit_sender_reference, set_top_up_txid
 from app.services.top_up_statuses import TopUpRequestTransitionError
 from app.services.top_up_verification import verify_crypto_txid_top_up
@@ -157,8 +158,28 @@ def test_txid_cannot_be_changed_after_verified() -> None:
         currency=Currency.USD,
     )
     request = set_top_up_txid(db, request=request, txid="abc123txid")
-    verify_crypto_txid_top_up(db, request_id=request.id, target_status=TopUpStatus.VERIFIED)
+    verify_crypto_txid_top_up(
+        db,
+        request_id=request.id,
+        target_status=TopUpStatus.VERIFIED,
+        evm_verifier=_AlwaysSuccessVerifier(),
+    )
     db.refresh(request)
 
     with pytest.raises(TopUpRequestTransitionError, match="Cannot set txid for request in status"):
         set_top_up_txid(db, request=request, txid="newtxid123")
+
+
+class _AlwaysSuccessVerifier:
+    def verify_transfer(self, **_kwargs) -> BlockchainVerificationResult:
+        return BlockchainVerificationResult(
+            ok=True,
+            data=BlockchainVerificationSuccess(
+                tx_hash="abc123txid",
+                network="bsc",
+                token="usdt",
+                amount=Decimal("10.00"),
+                recipient="0xrecipient",
+                raw_reference="explorer:https://api.bscscan.com/api",
+            ),
+        )

@@ -9,7 +9,7 @@ from app.models.activity_log import ActivityLog
 from app.models.enums import Currency, LogEventType, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
 from app.models.user import User
-from app.services.top_up_requests import create_top_up_request, set_top_up_txid, set_top_up_waiting_verification
+from app.services.top_up_requests import create_top_up_request, set_bybit_sender_reference, set_top_up_txid
 from app.services.top_up_statuses import TopUpRequestTransitionError
 from app.services.top_up_verification import verify_crypto_txid_top_up
 
@@ -80,10 +80,30 @@ def test_bybit_top_up_can_be_marked_waiting_verification() -> None:
         amount=Decimal("75.00"),
         currency=Currency.USD,
     )
-    request = set_top_up_waiting_verification(db, request=request, reference="bybit_uid_payment")
+    request = set_bybit_sender_reference(db, request=request, sender_uid="12345678")
 
     assert request.status == TopUpStatus.WAITING_VERIFICATION
-    assert request.external_reference == "bybit_uid_payment"
+    assert request.sender_uid == "12345678"
+
+
+def test_bybit_sender_reference_can_store_external_reference() -> None:
+    db = make_session()
+    user = User(telegram_id=790)
+    db.add(user)
+    db.commit()
+
+    request = create_top_up_request(
+        db,
+        user_id=user.id,
+        method=TopUpMethod.BYBIT_UID,
+        amount=Decimal("85.00"),
+        currency=Currency.USD,
+    )
+    request = set_bybit_sender_reference(db, request=request, external_reference="bybit-transfer-123")
+
+    assert request.status == TopUpStatus.WAITING_VERIFICATION
+    assert request.sender_uid is None
+    assert request.external_reference == "bybit-transfer-123"
 
 
 def test_set_top_up_txid_rejects_wrong_method() -> None:

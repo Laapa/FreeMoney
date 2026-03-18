@@ -18,6 +18,7 @@ class TopUpRequest(Base):
     currency: Mapped[Currency] = mapped_column(Enum(Currency), nullable=False)
     status: Mapped[TopUpStatus] = mapped_column(Enum(TopUpStatus), nullable=False)
     txid: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sender_uid: Mapped[str | None] = mapped_column(String(64), nullable=True)
     external_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     verification_note: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -139,8 +139,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Send a request ID (for example, #12) to view details.",
     },
     "top_up_request_details": {
-        Language.RU: "Детали заявки #{id}\nМетод: {method}\nСумма: {amount} {currency}\nСтатус: {status}\nTXID: {txid}\nСоздана: {created_at}\nПроверена: {reviewed_at}\nПримечание проверки: {verification_note}",
-        Language.EN: "Request #{id} details\nMethod: {method}\nAmount: {amount} {currency}\nStatus: {status}\nTXID: {txid}\nCreated at: {created_at}\nReviewed at: {reviewed_at}\nVerification note: {verification_note}",
+        Language.RU: "Детали заявки #{id}\nМетод: {method}\nСумма: {amount} {currency}\nСтатус: {status}\nTXID: {txid}\nUID отправителя: {sender_uid}\nВнешняя ссылка/референс: {external_reference}\nСоздана: {created_at}\nПроверена: {reviewed_at}\nПримечание проверки: {verification_note}",
+        Language.EN: "Request #{id} details\nMethod: {method}\nAmount: {amount} {currency}\nStatus: {status}\nTXID: {txid}\nSender UID: {sender_uid}\nExternal reference: {external_reference}\nCreated at: {created_at}\nReviewed at: {reviewed_at}\nVerification note: {verification_note}",
     },
     "top_up_not_provided": {
         Language.RU: "—",
@@ -201,9 +201,21 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Пополнение через Bybit UID. Введите сумму, и мы создадим заявку.",
         Language.EN: "Top up via Bybit UID. Enter the amount and we will create a request.",
     },
-    "top_up_bybit_instructions": {
-        Language.RU: "Инструкция (заглушка): отправьте перевод на наш Bybit UID. Подтверждение будет добавлено позже.",
-        Language.EN: "Instructions (placeholder): send transfer to our Bybit UID. Verification will be added later.",
+    "top_up_bybit_reference_prompt": {
+        Language.RU: "Отправьте UID отправителя Bybit (только цифры) или внешний референс платежа (минимум 6 символов).",
+        Language.EN: "Send sender Bybit UID (digits only) or a payment external reference (at least 6 characters).",
+    },
+    "top_up_bybit_reference_invalid": {
+        Language.RU: "Некорректный UID/референс. UID должен содержать 6-20 цифр, референс — 6-255 символов.",
+        Language.EN: "Invalid UID/reference. UID must be 6-20 digits, reference must be 6-255 characters.",
+    },
+    "top_up_bybit_reference_state_invalid": {
+        Language.RU: "Нельзя обновить Bybit UID/референс: заявка уже не в ожидаемом статусе.",
+        Language.EN: "Cannot update Bybit UID/reference: request is no longer in expected status.",
+    },
+    "top_up_bybit_reference_submitted": {
+        Language.RU: "UID/референс сохранен: {reference}",
+        Language.EN: "UID/reference saved: {reference}",
     },
     "rules_placeholder": {
         Language.RU: "Правила будут опубликованы здесь.",

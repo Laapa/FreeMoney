@@ -24,8 +24,8 @@ from app.services.top_up_requests import (
     create_top_up_request,
     get_top_up_request,
     list_user_top_up_requests,
+    set_bybit_sender_reference,
     set_top_up_txid,
-    set_top_up_waiting_verification,
 )
 from app.services.top_up_statuses import TopUpRequestTransitionError
 from app.services.users import get_user_by_telegram_id, init_or_update_user
@@ -41,6 +41,7 @@ class TopUpStates(StatesGroup):
     crypto_amount = State()
     crypto_txid = State()
     bybit_amount = State()
+    bybit_sender_reference = State()
 
 
 def _resolve_or_create_user(tg_user) -> User:
@@ -283,7 +284,9 @@ async def top_up_bybit_amount(message: Message, state: FSMContext) -> None:
             amount=amount,
             currency=user.currency,
         )
-        request = set_top_up_waiting_verification(db, request=request, reference="bybit_uid_payment")
+
+    await state.update_data(top_up_request_id=request.id)
+    await state.set_state(TopUpStates.bybit_sender_reference)
 
     await message.answer(
         t("top_up_request_summary", user.language).format(
@@ -292,10 +295,57 @@ async def top_up_bybit_amount(message: Message, state: FSMContext) -> None:
             amount=request.amount,
             currency=request.currency.value,
             status=_status_text(request, user.language),
-            note=request.external_reference or "-",
+            note=t("top_up_not_provided", user.language),
         )
         + "\n\n"
-        + t("top_up_bybit_instructions", user.language)
+        + t("top_up_bybit_reference_prompt", user.language),
+        reply_markup=top_up_cancel_keyboard(user.language),
+    )
+
+
+@router.message(TopUpStates.bybit_sender_reference)
+async def top_up_bybit_sender_reference(message: Message, state: FSMContext) -> None:
+    if message.from_user is None or not message.text:
+        return
+    user = _resolve_or_create_user(message.from_user)
+    if message.text in {t(TOP_UP_CANCEL, user.language), t("nav_back", user.language)}:
+        await _show_top_up_main(message, user=user, state=state)
+        return
+
+    sender_uid, external_reference = _parse_bybit_sender_reference(message.text)
+    if sender_uid is None and external_reference is None:
+        await message.answer(t("top_up_bybit_reference_invalid", user.language), reply_markup=top_up_cancel_keyboard(user.language))
+        return
+
+    data = await state.get_data()
+    request_id = data.get("top_up_request_id")
+    if not request_id:
+        await _show_top_up_main(message, user=user, state=state)
+        return
+
+    with SessionLocal() as db:
+        request = get_top_up_request(db, request_id=request_id, user_id=user.id)
+        if request is None:
+            await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language))
+            await _show_top_up_main(message, user=user, state=state)
+            return
+        try:
+            request = set_bybit_sender_reference(
+                db,
+                request=request,
+                sender_uid=sender_uid,
+                external_reference=external_reference,
+            )
+        except TopUpRequestTransitionError:
+            await message.answer(
+                t("top_up_bybit_reference_state_invalid", user.language), reply_markup=top_up_main_keyboard(user.language)
+            )
+            await _show_top_up_main(message, user=user, state=state)
+            return
+
+    submitted_reference = sender_uid or external_reference or t("top_up_not_provided", user.language)
+    await message.answer(
+        t("top_up_bybit_reference_submitted", user.language).format(reference=submitted_reference)
         + "\n\n"
         + t("top_up_waiting_verification", user.language).format(id=request.id, status=_status_text(request, user.language)),
         reply_markup=top_up_main_keyboard(user.language),
@@ -324,6 +374,8 @@ def _status_text(request: TopUpRequest, language: Language) -> str:
 
 def _format_top_up_request_details(request: TopUpRequest, language: Language) -> str:
     txid_value = request.txid or t("top_up_not_provided", language)
+    sender_uid_value = request.sender_uid or t("top_up_not_provided", language)
+    external_reference_value = request.external_reference or t("top_up_not_provided", language)
     reviewed_at_value = _format_optional_datetime(request.reviewed_at, language)
     verification_note_value = request.verification_note or t("top_up_not_provided", language)
     return t("top_up_request_details", language).format(
@@ -333,6 +385,8 @@ def _format_top_up_request_details(request: TopUpRequest, language: Language) ->
         currency=request.currency.value,
         status=_status_text(request, language),
         txid=txid_value,
+        sender_uid=sender_uid_value,
+        external_reference=external_reference_value,
         created_at=request.created_at.isoformat(sep=" ", timespec="seconds"),
         reviewed_at=reviewed_at_value,
         verification_note=verification_note_value,
@@ -352,3 +406,17 @@ def _parse_top_up_request_id(raw_text: str) -> int | None:
     if not normalized.isdigit():
         return None
     return int(normalized)
+
+
+def _parse_bybit_sender_reference(raw_value: str) -> tuple[str | None, str | None]:
+    value = raw_value.strip()
+    if not value:
+        return None, None
+
+    if value.isdigit() and 6 <= len(value) <= 20:
+        return value, None
+
+    if 6 <= len(value) <= 255 and "\n" not in value:
+        return None, value
+
+    return None, None

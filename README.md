@@ -98,6 +98,8 @@ BLOCKCHAIN_EXPLORER_BASE_URLS={"bsc":"https://api.bscscan.com/api"}
 BLOCKCHAIN_EXPLORER_API_KEYS={"bsc":"your_bscscan_api_key"}
 BLOCKCHAIN_AMOUNT_TOLERANCE=0
 BLOCKCHAIN_SUPPORTED_CRYPTO_OPTIONS={"bsc_usdt":{"network":"bsc","display_label":"USDT BSC (BEP20)","token_symbol":"usdt","token_contract":"0x55d398326f99059ff775485246999027b3197955","token_decimals":18,"recipient_wallet":"0xyour_deposit_wallet","is_native_coin":false}}
+ACTIVATION_API_BASE_URL=http://127.0.0.1:9000
+ACTIVATION_API_TIMEOUT_SECONDS=10
 ```
 
 ### 3) Run migrations
@@ -131,6 +133,71 @@ This starts aiogram polling with routers from `app/bot/router.py`.
 ```bash
 pytest
 ```
+
+
+## Activation website (MVP product page)
+
+A dedicated activation website is now included as a minimal user-facing page (not a full store).
+
+- URL: `http://127.0.0.1:8000/activation`
+- Root (`/`) redirects to `/activation`
+- UI includes RU/EN toggle, polished activation form, validation, loading state, and result card
+
+### Activation flow
+
+The website orchestrates the existing activation API flow in this strict order:
+
+1. `check_cdk`
+2. `check_token`
+3. `create_task`
+4. `check_task`
+
+Displayed status transitions:
+
+- checking code
+- checking token
+- creating activation
+- activation in progress
+- activation success / failed
+
+### How this relates to Telegram bot
+
+The Telegram bot remains the primary shop/sales surface.
+The website is a companion activation-only experience where a user pastes code/token received from the Telegram flow and completes activation.
+
+### Running locally
+
+1. Start backend app:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+2. Open:
+
+```text
+http://127.0.0.1:8000/activation
+```
+
+3. Ensure `ACTIVATION_API_BASE_URL` points to the activation API service that supports:
+
+- `GET /check_cdk?code=<activation_code>`
+- `POST /check_token` with JSON body `{ "token": <token_object> }`
+- `POST /create_task` with JSON body `{ "code_hash": "<code_hash>", "user_token": <token_object> }`
+- `GET /check_task/<task_id>`
+
+
+Token input handling on the website:
+
+- user enters token JSON in the form
+- backend parses it into an object/dict before calling activation API
+- invalid JSON or non-object JSON is rejected with a user-friendly form error
+
+Response compatibility in service mapping:
+
+- accepts boolean style (`ok`, `success`, `valid`)
+- accepts code style (`code == 0` as success)
+- accepts status style (`success` / `pending` / `failed`, including common variants)
 
 ## Notes on business rules coverage
 

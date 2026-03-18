@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ t.title }}</title>
+  <link rel="stylesheet" href="/static/activation.css" />
+</head>
+<body>
+  <main class="page-shell">
+    <section class="hero-card">
+      <div class="hero-head">
+        <p class="eyebrow">FreeMoney Activation</p>
+        <h1>{{ t.title }}</h1>
+        <p class="subtitle">{{ t.subtitle }}</p>
+      </div>
+      <a class="lang-switch" href="/activation?lang={{ 'ru' if lang == 'en' else 'en' }}">{{ t.lang_toggle }}</a>
+
+      <form id="activation-form" method="post" action="/activation" novalidate>
+        <input type="hidden" name="lang" value="{{ lang }}" />
+
+        <label for="cdk">{{ t.cdk_label }}</label>
+        <input id="cdk" name="cdk" value="{{ form.cdk }}" autocomplete="off" required />
+        <small>{{ t.cdk_hint }}</small>
+        {% if form_errors.get('cdk') %}
+        <p class="validation-error">{{ form_errors['cdk'] }}</p>
+        {% endif %}
+
+        <label for="token_input">{{ t.token_label }}</label>
+        <textarea id="token_input" name="token_input" rows="6" required>{{ form.token_input }}</textarea>
+        <small>{{ t.token_hint }}</small>
+        {% if form_errors.get('token_input') %}
+        <p class="validation-error">{{ form_errors['token_input'] }}</p>
+        {% endif %}
+
+        <div class="actions">
+          <button id="submit-btn" type="submit">{{ t.submit }}</button>
+          <a class="secondary-btn" href="/activation?lang={{ lang }}">{{ t.reset }}</a>
+        </div>
+        <p id="loading-hint" class="loading-hint" hidden>Processing your activation request…</p>
+      </form>
+    </section>
+
+    {% if flow_result %}
+    <section class="result-card result-{{ flow_result.status.value }}">
+      <h2>{{ status_labels[flow_result.status] }}</h2>
+      <p>{{ flow_result.message }}</p>
+      {% if flow_result.task_id %}
+      <p class="task-id">Task ID: <code>{{ flow_result.task_id }}</code></p>
+      {% endif %}
+      {% if flow_result.failure_reason %}
+      <p class="failure-reason">{{ flow_result.failure_reason }}</p>
+      {% endif %}
+      <ol class="step-list">
+        {% for step in flow_result.steps %}
+        <li class="{{ 'ok' if step.ok else 'failed' }}">
+          <span>{{ step.stage.value }}</span>
+          <span>{{ step.message }}</span>
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+    {% endif %}
+  </main>
+
+  <script>
+    const form = document.getElementById('activation-form');
+    const submitButton = document.getElementById('submit-btn');
+    const loadingHint = document.getElementById('loading-hint');
+    form.addEventListener('submit', () => {
+      submitButton.disabled = true;
+      loadingHint.hidden = false;
+      loadingHint.textContent = '{{ "Идет обработка активации…" if lang == "ru" else "Processing your activation request…" }}';
+    });
+  </script>
+</body>
+</html>

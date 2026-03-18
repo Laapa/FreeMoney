@@ -1,0 +1,1 @@
+"""Activation API integration layer."""

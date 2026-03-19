@@ -26,7 +26,7 @@ def test_resolve_language_defaults_to_ru() -> None:
     assert resolve_language("en-US") == Language.EN
 
 
-def test_init_or_update_user_creates_and_updates() -> None:
+def test_init_or_update_user_creates_and_updates_without_overwriting_language() -> None:
     db = make_session()
 
     created = init_or_update_user(db, telegram_id=111, username="first", language_code="en")
@@ -36,7 +36,7 @@ def test_init_or_update_user_creates_and_updates() -> None:
     updated = init_or_update_user(db, telegram_id=111, username="second", language_code="ru")
     assert updated.id == created.id
     assert updated.username == "second"
-    assert updated.language == Language.RU
+    assert updated.language == Language.EN
 
 
 def test_list_user_orders_sorted_desc() -> None:

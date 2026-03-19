@@ -158,16 +158,22 @@ def release_expired_reservations(db: Session, now: datetime | None = None) -> in
     return len(expired)
 
 
-def apply_payment_status(db: Session, payment: Payment, new_status: PaymentStatus) -> None:
+def apply_payment_status(db: Session, payment: Payment, new_status: PaymentStatus, *, now: datetime | None = None) -> None:
     payment.status = new_status
     order = payment.order
     reservation = order.reservation
 
     if new_status == PaymentStatus.SUCCESS:
+        if order.status == OrderStatus.DELIVERED and order.delivered_payload:
+            db.commit()
+            return
+
+        delivered_at = now or datetime.utcnow()
+        order.status = OrderStatus.PAID
         reservation.status = ReservationStatus.CONVERTED
         order.product.status = ProductStatus.SOLD
         order.delivered_payload = order.product.payload
-        order.delivered_at = datetime.utcnow()
+        order.delivered_at = delivered_at
         order.status = OrderStatus.DELIVERED
 
         db.add(

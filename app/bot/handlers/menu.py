@@ -1,6 +1,7 @@
 from math import ceil
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.bot.handlers.products import show_root_categories
@@ -8,18 +9,24 @@ from app.bot.i18n import t
 from app.bot.keyboards.account import (
     CALLBACK_ORDERS_BACK,
     CALLBACK_ORDERS_MENU,
+    CALLBACK_ORDERS_OPEN,
     CALLBACK_ORDERS_PAGE,
+    CALLBACK_ORDERS_PAY,
+    CALLBACK_ORDERS_TOP_UP,
     CALLBACK_PROFILE_BACK,
     CALLBACK_PROFILE_MENU,
+    order_details_keyboard,
     orders_keyboard,
     profile_keyboard,
 )
 from app.bot.keyboards.main_menu import MENU_KEYS, main_menu_keyboard, menu_key_by_text
+from app.bot.keyboards.top_up import top_up_main_keyboard
 from app.db.session import SessionLocal
 from app.models.enums import Language, OrderStatus
 from app.models.order import Order
 from app.models.user import User
-from app.services.orders import count_user_orders, get_user_order_stats, list_user_orders
+from app.bot.handlers.top_up import TopUpStates
+from app.services.orders import count_user_orders, get_user_order, get_user_order_stats, list_user_orders, pay_pending_order_from_balance
 from app.services.users import get_user_by_telegram_id, init_or_update_user
 
 router = Router(name="menu")
@@ -59,6 +66,20 @@ def _render_orders_text(*, language: Language, orders: list[Order], page: int, p
         lines.append("")
 
     return "\n".join(lines).strip()
+
+
+def _render_order_details_text(*, language: Language, order: Order, currency: str) -> str:
+    lines = [
+        t("orders_details_title", language).format(id=order.id),
+        t("orders_details_created", language).format(created_at=_format_dt(order.created_at)),
+        t("orders_details_status", language).format(status=_order_status_label(order.status, language)),
+        t("orders_details_price", language).format(price=order.price, currency=currency),
+    ]
+    if order.status == OrderStatus.DELIVERED and order.delivered_payload:
+        lines.append(t("orders_payload", language).format(payload=_sanitize_payload(order.delivered_payload)))
+    if order.delivered_at is not None:
+        lines.append(t("orders_details_delivered_at", language).format(delivered_at=_format_dt(order.delivered_at)))
+    return "\n".join(lines)
 
 
 def _resolve_or_create_user(tg_user) -> User:
@@ -114,7 +135,7 @@ async def _show_orders(message: Message, user: User, page: int = 1) -> None:
             pages=pages,
             currency=user.currency.value,
         ),
-        reply_markup=orders_keyboard(language=user.language, page=page, pages=pages),
+        reply_markup=orders_keyboard(language=user.language, page=page, pages=pages, orders=orders),
     )
 
 
@@ -192,6 +213,111 @@ async def on_orders_page(callback: CallbackQuery) -> None:
             pages=pages,
             currency=user.currency.value,
         ),
-        reply_markup=orders_keyboard(language=user.language, page=page, pages=pages),
+        reply_markup=orders_keyboard(language=user.language, page=page, pages=pages, orders=orders),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith(f"{CALLBACK_ORDERS_OPEN}:"))
+async def on_order_open(callback: CallbackQuery) -> None:
+    message = callback.message
+    if message is None or callback.data is None:
+        await callback.answer()
+        return
+
+    user = _resolve_or_create_user(callback.from_user)
+    order_id = int(callback.data.split(":")[-1])
+
+    with SessionLocal() as db:
+        order = get_user_order(db, user_id=user.id, order_id=order_id)
+        if order is None:
+            await callback.answer(t("orders_not_found", user.language), show_alert=True)
+            return
+
+    await message.edit_text(
+        _render_order_details_text(language=user.language, order=order, currency=user.currency.value),
+        reply_markup=order_details_keyboard(
+            language=user.language,
+            order_id=order.id,
+            can_pay=order.status == OrderStatus.PENDING,
+            show_top_up=order.status == OrderStatus.PENDING,
+        ),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith(f"{CALLBACK_ORDERS_PAY}:"))
+async def on_order_pay(callback: CallbackQuery) -> None:
+    message = callback.message
+    if message is None or callback.data is None:
+        await callback.answer()
+        return
+
+    user = _resolve_or_create_user(callback.from_user)
+    order_id = int(callback.data.split(":")[-1])
+    with SessionLocal() as db:
+        result = pay_pending_order_from_balance(db, user_id=user.id, order_id=order_id)
+        order = get_user_order(db, user_id=user.id, order_id=order_id)
+        current_user = get_user_by_telegram_id(db, user.telegram_id)
+
+    if order is None:
+        await callback.answer(t("orders_not_found", user.language), show_alert=True)
+        return
+
+    if not result.ok:
+        if result.reason == "insufficient_balance":
+            await message.edit_text(
+                t("orders_payment_insufficient_balance", user.language).format(
+                    balance=current_user.balance if current_user is not None else user.balance,
+                    currency=user.currency.value,
+                ),
+                reply_markup=order_details_keyboard(
+                    language=user.language,
+                    order_id=order.id,
+                    can_pay=True,
+                    show_top_up=True,
+                ),
+            )
+            await callback.answer()
+            return
+
+        await message.edit_text(
+            t("orders_payment_not_available", user.language),
+            reply_markup=order_details_keyboard(
+                language=user.language,
+                order_id=order.id,
+                can_pay=False,
+                show_top_up=False,
+            ),
+        )
+        await callback.answer()
+        return
+
+    await message.edit_text(
+        t("orders_payment_success", user.language) + "\n\n" + _render_order_details_text(language=user.language, order=order, currency=user.currency.value),
+        reply_markup=order_details_keyboard(
+            language=user.language,
+            order_id=order.id,
+            can_pay=False,
+            show_top_up=False,
+        ),
+    )
+    if order.delivered_payload:
+        await message.answer(t("orders_delivery_message", user.language).format(payload=order.delivered_payload))
+    await callback.answer(t("orders_payment_success_toast", user.language))
+
+
+@router.callback_query(F.data == CALLBACK_ORDERS_TOP_UP)
+async def on_order_top_up(callback: CallbackQuery, state: FSMContext) -> None:
+    message = callback.message
+    if message is None:
+        await callback.answer()
+        return
+
+    user = _resolve_or_create_user(callback.from_user)
+    await state.set_state(TopUpStates.choosing_method)
+    await message.answer(
+        t("top_up_main", user.language).format(balance=user.balance, currency=user.currency.value),
+        reply_markup=top_up_main_keyboard(user.language),
     )
     await callback.answer()

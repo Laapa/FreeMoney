@@ -43,6 +43,62 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Заказ #{id}\n📅 Создан: {created_at}\n📌 Статус: {status}\n💵 Цена: {price} {currency}",
         Language.EN: "Order #{id}\n📅 Created: {created_at}\n📌 Status: {status}\n💵 Price: {price} {currency}",
     },
+    "orders_open": {
+        Language.RU: "🔎 Заказ #{id}",
+        Language.EN: "🔎 Order #{id}",
+    },
+    "orders_not_found": {
+        Language.RU: "Заказ не найден.",
+        Language.EN: "Order not found.",
+    },
+    "orders_details_title": {
+        Language.RU: "📦 Детали заказа #{id}",
+        Language.EN: "📦 Order #{id} details",
+    },
+    "orders_details_created": {
+        Language.RU: "📅 Создан: {created_at}",
+        Language.EN: "📅 Created: {created_at}",
+    },
+    "orders_details_status": {
+        Language.RU: "📌 Статус: {status}",
+        Language.EN: "📌 Status: {status}",
+    },
+    "orders_details_price": {
+        Language.RU: "💵 Цена: {price} {currency}",
+        Language.EN: "💵 Price: {price} {currency}",
+    },
+    "orders_details_delivered_at": {
+        Language.RU: "✅ Доставлен: {delivered_at}",
+        Language.EN: "✅ Delivered: {delivered_at}",
+    },
+    "orders_action_pay": {
+        Language.RU: "💸 Оплатить",
+        Language.EN: "💸 Pay",
+    },
+    "orders_action_top_up": {
+        Language.RU: "💳 Пополнить",
+        Language.EN: "💳 Top Up",
+    },
+    "orders_payment_insufficient_balance": {
+        Language.RU: "Недостаточно средств для оплаты заказа.\nТекущий баланс: {balance} {currency}",
+        Language.EN: "Insufficient balance for this order.\nCurrent balance: {balance} {currency}",
+    },
+    "orders_payment_not_available": {
+        Language.RU: "Оплата недоступна для этого заказа.",
+        Language.EN: "Payment is not available for this order.",
+    },
+    "orders_payment_success": {
+        Language.RU: "Оплата прошла успешно и товар доставлен ✅",
+        Language.EN: "Payment successful and product delivered ✅",
+    },
+    "orders_payment_success_toast": {
+        Language.RU: "Заказ оплачен",
+        Language.EN: "Order paid",
+    },
+    "orders_delivery_message": {
+        Language.RU: "🔑 Ваш товар:\n{payload}",
+        Language.EN: "🔑 Your product:\n{payload}",
+    },
     "orders_payload": {
         Language.RU: "🔑 Данные:\n{payload}",
         Language.EN: "🔑 Payload:\n{payload}",
@@ -123,8 +179,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "This product is no longer available. Please choose another one.",
     },
     "products_reservation_success": {
-        Language.RU: "Резерв создан ✅\nКатегория: {title}\nReservation ID: {reservation_id}\nOrder ID: {order_id}\nЦена: {price}\n\nСледующий шаг: оплата (будет добавлена на следующем этапе).",
-        Language.EN: "Reservation created ✅\nCategory: {title}\nReservation ID: {reservation_id}\nOrder ID: {order_id}\nPrice: {price}\n\nNext step: payment (placeholder for next iteration).",
+        Language.RU: "Резерв создан ✅\nКатегория: {title}\nReservation ID: {reservation_id}\nOrder ID: {order_id}\nЦена: {price}\n\nСледующий шаг: откройте раздел заказов и оплатите резерв с баланса.",
+        Language.EN: "Reservation created ✅\nCategory: {title}\nReservation ID: {reservation_id}\nOrder ID: {order_id}\nPrice: {price}\n\nNext step: open Orders and pay from balance.",
     },
     "products_reserved_toast": {
         Language.RU: "Товар зарезервирован",

@@ -5,6 +5,16 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Добро пожаловать в FreeMoney! Выберите действие в меню ниже.",
         Language.EN: "Welcome to FreeMoney! Choose an action from the menu below.",
     },
+    "language_prompt": {
+        Language.RU: "🌐 Выберите язык / Choose your language",
+        Language.EN: "🌐 Choose your language / Выберите язык",
+    },
+    "language_saved": {
+        Language.RU: "Язык сохранен: Русский ✅",
+        Language.EN: "Language saved: English ✅",
+    },
+    "language_option_ru": {Language.RU: "Русский", Language.EN: "Русский"},
+    "language_option_en": {Language.RU: "English", Language.EN: "English"},
     "menu_products": {Language.RU: "🛍 Товары", Language.EN: "🛍 Products"},
     "menu_top_up": {Language.RU: "💳 Пополнить", Language.EN: "💳 Top Up"},
     "menu_profile": {Language.RU: "👤 Профиль", Language.EN: "👤 Profile"},
@@ -12,6 +22,7 @@ TEXTS: dict[str, dict[Language, str]] = {
     "menu_rules": {Language.RU: "📜 Правила", Language.EN: "📜 Rules"},
     "menu_support": {Language.RU: "🛟 Поддержка", Language.EN: "🛟 Support"},
     "profile_title": {Language.RU: "Ваш профиль", Language.EN: "Your profile"},
+    "profile_change_language": {Language.RU: "🌐 Сменить язык", Language.EN: "🌐 Change language"},
     "profile_body": {
         Language.RU: (
             "🆔 Telegram ID: {id}\n"

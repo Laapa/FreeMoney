@@ -6,6 +6,7 @@ from app.models.order import Order
 
 CALLBACK_PROFILE_BACK = "acc:profile:back"
 CALLBACK_PROFILE_MENU = "acc:profile:menu"
+CALLBACK_PROFILE_LANGUAGE = "acc:profile:language"
 CALLBACK_ORDERS_BACK = "acc:orders:back"
 CALLBACK_ORDERS_MENU = "acc:orders:menu"
 CALLBACK_ORDERS_PAGE = "acc:orders:page"
@@ -29,6 +30,7 @@ def order_pay_callback(order_id: int) -> str:
 def profile_keyboard(language: Language) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text=t("profile_change_language", language), callback_data=CALLBACK_PROFILE_LANGUAGE)],
             [InlineKeyboardButton(text=t("nav_back", language), callback_data=CALLBACK_PROFILE_BACK)],
             [InlineKeyboardButton(text=t("nav_main_menu", language), callback_data=CALLBACK_PROFILE_MENU)],
         ]

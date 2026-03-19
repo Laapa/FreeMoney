@@ -26,7 +26,6 @@ def init_or_update_user(
         db.add(user)
     else:
         user.username = username
-        user.language = resolved_language
 
     db.commit()
     db.refresh(user)
@@ -35,3 +34,10 @@ def init_or_update_user(
 
 def get_user_by_telegram_id(db: Session, telegram_id: int) -> User | None:
     return db.scalar(select(User).where(User.telegram_id == telegram_id))
+
+
+def set_user_language(db: Session, *, user: User, language: Language) -> User:
+    user.language = language
+    db.commit()
+    db.refresh(user)
+    return user

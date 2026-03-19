@@ -1,6 +1,7 @@
 import uvicorn
 
 from app.bot.main import main as run_bot_main
+from app.scripts.credit_balance import main as credit_balance_main
 from app.scripts.seed_demo_data import main as seed_demo_data_main
 
 
@@ -14,3 +15,7 @@ def run_bot() -> None:
 
 def seed_demo() -> None:
     seed_demo_data_main()
+
+
+def credit_balance() -> None:
+    credit_balance_main()

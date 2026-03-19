@@ -1,1 +1,1 @@
-"""Application package for FreeMoney backend foundation."""
+"""Application package for WEBSTER-SHOP backend foundation."""

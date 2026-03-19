@@ -15,8 +15,8 @@ templates = Jinja2Templates(directory="app/web/templates")
 
 TRANSLATIONS = {
     "en": {
-        "title": "Account Activation",
-        "subtitle": "Activate your purchased product access in a few steps.",
+        "title": "WEBSTER-SHOP Account Activation",
+        "subtitle": "Activate your purchased product access in a few quick steps.",
         "cdk_label": "Activation code (CDK)",
         "cdk_hint": "Paste the code you received from the Telegram shop.",
         "token_label": "Token / account JSON",
@@ -32,8 +32,8 @@ TRANSLATIONS = {
         "state_failed": "Activation failed",
     },
     "ru": {
-        "title": "Активация аккаунта",
-        "subtitle": "Активируйте доступ к купленному продукту за несколько шагов.",
+        "title": "Активация аккаунта WEBSTER-SHOP",
+        "subtitle": "Активируйте доступ к купленному продукту за несколько простых шагов.",
         "cdk_label": "Код активации (CDK)",
         "cdk_hint": "Вставьте код, который вы получили в Telegram-магазине.",
         "token_label": "Токен / JSON аккаунта",

@@ -2,8 +2,8 @@ from app.models.enums import Language
 
 TEXTS: dict[str, dict[Language, str]] = {
     "start": {
-        Language.RU: "Добро пожаловать в FreeMoney! Выберите действие в меню ниже.",
-        Language.EN: "Welcome to FreeMoney! Choose an action from the menu below.",
+        Language.RU: "Добро пожаловать в WEBSTER-SHOP! Выберите действие в меню ниже.",
+        Language.EN: "Welcome to WEBSTER-SHOP! Choose an action from the menu below.",
     },
     "language_prompt": {
         Language.RU: "🌐 Выберите язык / Choose your language",
@@ -294,12 +294,12 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "UID/reference saved: {reference}",
     },
     "rules_placeholder": {
-        Language.RU: "Правила будут опубликованы здесь.",
-        Language.EN: "Rules will be published here.",
+        Language.RU: "Правила WEBSTER-SHOP будут опубликованы здесь.",
+        Language.EN: "WEBSTER-SHOP rules will be published here.",
     },
     "support_placeholder": {
-        Language.RU: "Поддержка: @support",
-        Language.EN: "Support: @support",
+        Language.RU: "Поддержка WEBSTER-SHOP: @support",
+        Language.EN: "WEBSTER-SHOP support: @support",
     },
 }
 

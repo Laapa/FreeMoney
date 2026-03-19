@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "freemoney-backend"
+name = "webster-shop-backend"
 version = "0.1.0"
-description = "MVP backend foundation for Telegram shop bot"
+description = "WEBSTER-SHOP MVP backend for Telegram shop bot and activation website"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.111.0,<1.0.0",
@@ -20,10 +20,10 @@ dependencies = [
 ]
 
 [project.scripts]
-freemoney-api = "app.cli:run_api"
-freemoney-bot = "app.cli:run_bot"
-freemoney-seed-demo = "app.cli:seed_demo"
-freemoney-credit-balance = "app.cli:credit_balance"
+webster-shop-api = "app.cli:run_api"
+webster-shop-bot = "app.cli:run_bot"
+webster-shop-seed-demo = "app.cli:seed_demo"
+webster-shop-credit-balance = "app.cli:credit_balance"
 
 
 [project.optional-dependencies]

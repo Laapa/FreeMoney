@@ -2,7 +2,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
-freemoney.db
+webster_shop.db
 
 .env
 *.db

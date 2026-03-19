@@ -59,6 +59,20 @@ Demo seed specifics (for local manual catalog testing):
 - Demo pricing rows in `user_category_prices` for `Steam` and `Xbox`.
 - Catalog price resolution first tries the current Telegram user's personal row, then falls back to the seeded category price if user-specific pricing is missing.
 
+### Step C.1 - optional: credit balance for your own Telegram test user
+
+If you test with your own Telegram account (not the seeded demo user), use:
+
+```bash
+freemoney-credit-balance
+```
+
+The helper prompts for:
+- Telegram ID
+- amount to credit
+
+It updates the existing user balance in DB and prints the new balance, so manual purchase smoke-tests do not require direct SQL edits.
+
 ### Step D - run API / website
 
 ```bash
@@ -89,6 +103,7 @@ pytest
 - **Migration command**: `alembic upgrade head`
 - **Test command**: `pytest`
 - **Dev seed command**: `freemoney-seed-demo`
+- **Dev balance credit command**: `freemoney-credit-balance`
 
 ## 4) Smoke-test checklist
 
@@ -103,6 +118,11 @@ After setup, verify:
 7. Activation page opens and validates invalid token JSON input.
 8. Activation submit calls backend flow and returns success/pending/failed state.
 9. Health endpoints return OK (`/health`, `/health/ready`).
+10. Purchase E2E flow in bot:
+   - reserve product in catalog,
+   - open order in Orders,
+   - pay from balance,
+   - verify payload is delivered and order status becomes `delivered`.
 
 ## 5) Logging and error visibility
 

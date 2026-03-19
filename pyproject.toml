@@ -23,6 +23,7 @@ dependencies = [
 freemoney-api = "app.cli:run_api"
 freemoney-bot = "app.cli:run_bot"
 freemoney-seed-demo = "app.cli:seed_demo"
+freemoney-credit-balance = "app.cli:credit_balance"
 
 
 [project.optional-dependencies]

@@ -80,8 +80,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "💳 Top Up",
     },
     "orders_payment_insufficient_balance": {
-        Language.RU: "Недостаточно средств для оплаты заказа.\nТекущий баланс: {balance} {currency}",
-        Language.EN: "Insufficient balance for this order.\nCurrent balance: {balance} {currency}",
+        Language.RU: "Недостаточно средств для оплаты заказа.\nТекущий баланс: {balance} {currency}\nНажмите «💳 Пополнить», затем повторите оплату.",
+        Language.EN: "Insufficient balance for this order.\nCurrent balance: {balance} {currency}\nTap “💳 Top Up” and then retry payment.",
     },
     "orders_payment_not_available": {
         Language.RU: "Оплата недоступна для этого заказа.",

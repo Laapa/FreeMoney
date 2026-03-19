@@ -158,14 +158,22 @@ def release_expired_reservations(db: Session, now: datetime | None = None) -> in
     return len(expired)
 
 
-def apply_payment_status(db: Session, payment: Payment, new_status: PaymentStatus, *, now: datetime | None = None) -> None:
+def apply_payment_status(
+    db: Session,
+    payment: Payment,
+    new_status: PaymentStatus,
+    *,
+    now: datetime | None = None,
+    auto_commit: bool = True,
+) -> None:
     payment.status = new_status
     order = payment.order
     reservation = order.reservation
 
     if new_status == PaymentStatus.SUCCESS:
         if order.status == OrderStatus.DELIVERED and order.delivered_payload:
-            db.commit()
+            if auto_commit:
+                db.commit()
             return
 
         delivered_at = now or datetime.utcnow()
@@ -210,4 +218,5 @@ def apply_payment_status(db: Session, payment: Payment, new_status: PaymentStatu
         )
         logger.warning("Payment failed/expired | order_id=%s payment_id=%s status=%s", order.id, payment.id, new_status.value)
 
-    db.commit()
+    if auto_commit:
+        db.commit()

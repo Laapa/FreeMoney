@@ -100,17 +100,14 @@ def pay_pending_order_from_balance(db: Session, *, user_id: int, order_id: int, 
         return OrderPaymentResult(ok=False, reason="already_paid", order=order, payment=payment)
 
     if payment is None:
-        payment = Payment(order_id=order.id, amount=order.price, status=PaymentStatus.PENDING)
+        payment = Payment(order_id=order.id, amount=order.price, status=PaymentStatus.CREATED)
         db.add(payment)
         db.flush()
     else:
         payment.amount = order.price
-        payment.status = PaymentStatus.PENDING
 
-    order.status = OrderStatus.PAID
+    apply_payment_status(db, payment, PaymentStatus.SUCCESS, now=now, auto_commit=False)
     db.commit()
-
-    apply_payment_status(db, payment, PaymentStatus.SUCCESS, now=now)
     db.refresh(order)
     db.refresh(payment)
     return OrderPaymentResult(ok=True, reason="paid_and_delivered", order=order, payment=payment)

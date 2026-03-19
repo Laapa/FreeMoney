@@ -82,6 +82,25 @@ def test_duplicate_payment_attempt_not_double_deducted_or_delivered() -> None:
     assert order.status == OrderStatus.DELIVERED
 
 
+def test_payment_flow_commits_once_and_avoids_intermediate_paid_commit() -> None:
+    db = make_session()
+    user, order = seed_pending_order(db, balance=Decimal("30.00"))
+    original_commit = db.commit
+    commit_calls = {"count": 0}
+
+    def tracked_commit():
+        commit_calls["count"] += 1
+        return original_commit()
+
+    db.commit = tracked_commit
+    result = pay_pending_order_from_balance(db, user_id=user.id, order_id=order.id)
+    db.refresh(order)
+
+    assert result.ok is True
+    assert commit_calls["count"] == 1
+    assert order.status == OrderStatus.DELIVERED
+
+
 def test_orders_keyboard_exposes_open_action() -> None:
     db = make_session()
     _, order = seed_pending_order(db)

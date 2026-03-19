@@ -8,11 +8,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = Field(default="FreeMoney Backend", alias="APP_NAME")
+    app_name: str = Field(default="WEBSTER-SHOP Backend", alias="APP_NAME")
     app_env: str = Field(default="dev", alias="APP_ENV")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
-    database_url: str = Field(default="sqlite:///./freemoney.db", alias="DATABASE_URL")
+    database_url: str = Field(default="sqlite:///./webster_shop.db", alias="DATABASE_URL")
     sql_echo: bool = Field(default=False, alias="SQL_ECHO")
 
     telegram_bot_token: str | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")

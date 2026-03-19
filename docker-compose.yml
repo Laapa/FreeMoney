@@ -2,9 +2,9 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_DB: freemoney
-      POSTGRES_USER: freemoney
-      POSTGRES_PASSWORD: freemoney
+      POSTGRES_DB: webster_shop
+      POSTGRES_USER: webster_shop
+      POSTGRES_PASSWORD: webster_shop
     ports:
       - "5432:5432"
     volumes:
@@ -17,7 +17,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://freemoney:freemoney@db:5432/freemoney
+      DATABASE_URL: postgresql+psycopg://webster_shop:webster_shop@db:5432/webster_shop
     ports:
       - "8000:8000"
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"

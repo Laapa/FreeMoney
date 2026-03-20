@@ -1,6 +1,6 @@
 """initial schema
 
-Revision ID: 0001_initial
+Revision ID: 0001
 Revises:
 Create Date: 2026-03-17 00:00:00.000000
 
@@ -13,7 +13,7 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision: str = "0001_initial"
+revision: str = "0001"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -33,7 +33,7 @@ def upgrade() -> None:
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("telegram_id", sa.Integer(), nullable=False),
+        sa.Column("telegram_id", sa.BigInteger(), nullable=False),
         sa.Column("username", sa.String(length=255), nullable=True),
         sa.Column("language", sa.Enum("RU", "EN", name="language"), nullable=False),
         sa.Column("currency", sa.Enum("RUB", "USD", name="currency"), nullable=False),

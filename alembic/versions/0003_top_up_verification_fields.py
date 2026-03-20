@@ -1,7 +1,7 @@
 """top up verification fields and log events
 
-Revision ID: 0003_top_up_verification_fields
-Revises: 0002_top_up_requests
+Revision ID: 0003
+Revises: 0002
 Create Date: 2026-03-17 01:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0003_top_up_verification_fields"
-down_revision: Union[str, None] = "0002_top_up_requests"
+revision: str = "0003"
+down_revision: Union[str, None] = "0002"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

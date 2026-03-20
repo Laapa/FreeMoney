@@ -55,6 +55,9 @@ Fill required values in `.env`.
 ```bash
 alembic upgrade head
 ```
+PostgreSQL compatibility notes:
+- `users.telegram_id` is migrated/stored as `BIGINT` (Telegram IDs can exceed 32-bit integer range).
+- Alembic revisions use short IDs compatible with the default `alembic_version.version_num` length, so no manual table hacks are required.
 
 ### Step D — optional demo seed data (dev only)
 ```bash

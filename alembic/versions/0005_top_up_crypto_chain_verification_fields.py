@@ -1,7 +1,7 @@
 """add on-chain verification fields for crypto top ups
 
-Revision ID: 0005_top_up_crypto_chain_verification_fields
-Revises: 0004_top_up_bybit_sender_uid
+Revision ID: 0005
+Revises: 0004
 Create Date: 2026-03-18 00:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0005_top_up_crypto_chain_verification_fields"
-down_revision: Union[str, None] = "0004_top_up_bybit_sender_uid"
+revision: str = "0005"
+down_revision: Union[str, None] = "0004"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

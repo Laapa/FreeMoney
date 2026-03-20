@@ -1,7 +1,7 @@
 """add top up requests
 
-Revision ID: 0002_top_up_requests
-Revises: 0001_initial
+Revision ID: 0002
+Revises: 0001
 Create Date: 2026-03-17 00:30:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0002_top_up_requests"
-down_revision: Union[str, None] = "0001_initial"
+revision: str = "0002"
+down_revision: Union[str, None] = "0001"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -1,7 +1,7 @@
 """add sender uid field for bybit top ups
 
-Revision ID: 0004_top_up_bybit_sender_uid
-Revises: 0003_top_up_verification_fields
+Revision ID: 0004
+Revises: 0003
 Create Date: 2026-03-17 02:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0004_top_up_bybit_sender_uid"
-down_revision: Union[str, None] = "0003_top_up_verification_fields"
+revision: str = "0004"
+down_revision: Union[str, None] = "0003"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -274,8 +274,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Request #{id} was sent for review. Current status: {status}. We will notify you after verification.",
     },
     "top_up_bybit_intro": {
-        Language.RU: "Пополнение через Bybit UID. Введите сумму, и мы создадим заявку.",
-        Language.EN: "Top up via Bybit UID. Enter the amount and we will create a request.",
+        Language.RU: "Пополнение через Bybit UID. Введите сумму, и мы создадим заявку на ручную проверку оператором.",
+        Language.EN: "Top up via Bybit UID. Enter the amount and we will create a request for operator/manual review.",
     },
     "top_up_bybit_reference_prompt": {
         Language.RU: "Отправьте UID отправителя Bybit (только цифры) или внешний референс платежа (минимум 6 символов).",
@@ -290,8 +290,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Cannot update Bybit UID/reference: request is no longer in expected status.",
     },
     "top_up_bybit_reference_submitted": {
-        Language.RU: "UID/референс сохранен: {reference}",
-        Language.EN: "UID/reference saved: {reference}",
+        Language.RU: "UID/референс сохранен: {reference}. Заявка будет проверена оператором вручную.",
+        Language.EN: "UID/reference saved: {reference}. The request will be reviewed manually by an operator.",
     },
     "rules_placeholder": {
         Language.RU: "Правила WEBSTER-SHOP будут опубликованы здесь.",

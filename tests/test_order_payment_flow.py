@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.bot.handlers import menu as menu_handlers
-from app.bot.keyboards.account import orders_keyboard
+from app.bot.keyboards.account import order_details_keyboard, orders_keyboard
 from app.db.base import Base
 from app.models.category import Category
 from app.models.enums import Currency, Language, OrderStatus, ProductStatus, ReservationStatus
@@ -109,6 +109,26 @@ def test_orders_keyboard_exposes_open_action() -> None:
     callback_data = [button.callback_data for row in keyboard.inline_keyboard for button in row]
 
     assert f"acc:orders:open:{order.id}" in callback_data
+
+
+def test_order_payment_screen_keyboard_for_crypto_pay() -> None:
+    keyboard = order_details_keyboard(
+        language=Language.RU,
+        order_id=42,
+        can_pay=False,
+        show_top_up=True,
+        payment_url="https://pay.example/invoice",
+        payment_screen=True,
+    )
+    texts = [button.text for row in keyboard.inline_keyboard for button in row if button.text]
+    callback_data = [button.callback_data for row in keyboard.inline_keyboard for button in row if button.callback_data]
+    urls = [button.url for row in keyboard.inline_keyboard for button in row if button.url]
+
+    assert "💳 Перейти к оплате" in texts
+    assert "🔄 Проверить оплату" in texts
+    assert "❌ Отменить оплату" in texts
+    assert "https://pay.example/invoice" in urls
+    assert "acc:orders:check:42" in callback_data
 
 
 def test_order_details_render_includes_delivered_payload() -> None:

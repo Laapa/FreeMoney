@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     sql_echo: bool = Field(default=False, alias="SQL_ECHO")
 
     telegram_bot_token: str | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
+    cryptopay_api_token: str | None = Field(default=None, alias="CRYPTOPAY_API_TOKEN")
+    cryptopay_use_testnet: bool = Field(default=False, alias="CRYPTOPAY_USE_TESTNET")
+    cryptopay_api_base_url: str | None = Field(default=None, alias="CRYPTOPAY_API_BASE_URL")
+    cryptopay_asset: str = Field(default="USDT", alias="CRYPTOPAY_ASSET")
+    cryptopay_invoice_expires_in: int = Field(default=1800, alias="CRYPTOPAY_INVOICE_EXPIRES_IN")
 
     blockchain_explorer_base_urls: dict[str, str] = Field(
         default={"bsc": "https://api.bscscan.com/api"},
@@ -40,6 +45,14 @@ class Settings(BaseSettings):
 
     activation_api_base_url: str = Field(default="http://127.0.0.1:9000", alias="ACTIVATION_API_BASE_URL")
     activation_api_timeout_seconds: float = Field(default=10.0, alias="ACTIVATION_API_TIMEOUT_SECONDS")
+
+    @property
+    def cryptopay_effective_api_base_url(self) -> str:
+        if self.cryptopay_api_base_url:
+            return self.cryptopay_api_base_url.rstrip("/")
+        if self.cryptopay_use_testnet:
+            return "https://testnet-pay.crypt.bot/api"
+        return "https://pay.crypt.bot/api"
 
 
 @lru_cache(maxsize=1)

@@ -124,6 +124,7 @@ TEXTS: dict[str, dict[Language, str]] = {
     "orders_status_delivered": {Language.RU: "Доставлен", Language.EN: "Delivered"},
     "orders_status_canceled": {Language.RU: "Отменен", Language.EN: "Canceled"},
     "orders_action_check_payment": {Language.RU: "🔄 Проверить оплату", Language.EN: "🔄 Check payment"},
+    "orders_action_open_payment": {Language.RU: "💳 Перейти к оплате", Language.EN: "💳 Proceed to payment"},
     "orders_action_cancel_payment": {Language.RU: "❌ Отменить оплату", Language.EN: "❌ Cancel payment"},
     "orders_payment_screen": {
         Language.RU: "Оплата заказа #{id}\nТовар: {title}\nСумма: {amount} {currency}\nМетод: {method}\nСоздан: {created_at}\nОплатить до: {deadline}",
@@ -132,6 +133,18 @@ TEXTS: dict[str, dict[Language, str]] = {
     "orders_payment_pending": {
         Language.RU: "Оплата еще не подтверждена.",
         Language.EN: "Payment is not confirmed yet.",
+    },
+    "orders_payment_expired": {
+        Language.RU: "Счет истек. Создайте оплату заново.",
+        Language.EN: "Invoice expired. Please create payment again.",
+    },
+    "orders_payment_invalid": {
+        Language.RU: "Счет недействителен или не найден.",
+        Language.EN: "Invoice is invalid or was not found.",
+    },
+    "orders_payment_unavailable": {
+        Language.RU: "Провайдер оплаты временно недоступен. Попробуйте позже.",
+        Language.EN: "Payment provider is temporarily unavailable. Please retry later.",
     },
     "orders_payment_canceled": {
         Language.RU: "Оплата отменена.",

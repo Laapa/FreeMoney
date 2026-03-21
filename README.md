@@ -18,7 +18,9 @@ This document is written for client handoff and developer onboarding.
   - `activation_task` (paid -> processing activation task),
   - `manual_supplier` (paid -> manual/supplier processing).
 - Order listing/details.
-- Test-mode payment flow (create payment, check payment, cancel payment) ready for later provider wiring.
+- Parallel payment flows:
+  - Crypto Pay real invoices (`provider=crypto_pay`) when `CRYPTOPAY_API_TOKEN` is configured,
+  - test stub flow (`provider=test_stub`) when Crypto Pay token is not configured.
 - Top-up request flows:
   - crypto (TXID-based verification),
   - Bybit UID / external reference flow (reviewed by operator/manual process).
@@ -164,8 +166,21 @@ It updates the existing user balance and prints the new total.
 - `BLOCKCHAIN_EXPLORER_API_KEYS`
 - `BLOCKCHAIN_SUPPORTED_CRYPTO_OPTIONS`
 - `BLOCKCHAIN_AMOUNT_TOLERANCE`
+- `CRYPTOPAY_API_TOKEN` (enables real Crypto Pay invoice payments in orders)
+- `CRYPTOPAY_USE_TESTNET` (default `false`)
+- `CRYPTOPAY_API_BASE_URL` (optional override; default resolved by testnet flag)
+- `CRYPTOPAY_ASSET` (default `USDT`)
+- `CRYPTOPAY_INVOICE_EXPIRES_IN` in seconds (default `1800`)
 
 See `.env.example` for a complete template.
+
+### Crypto Pay quick note
+- Press **Pay** in order details to create payment.
+- For Crypto Pay invoices, bot shows **Proceed to payment** URL button + **Check payment** button.
+- When invoice status becomes `paid`, existing fulfillment flow runs as-is:
+  - `direct_stock` -> immediate delivery,
+  - `activation_task` -> processing + activation path,
+  - `manual_supplier` -> processing.
 
 ---
 

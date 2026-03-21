@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.bot.handlers import products as products_handlers
 from app.db.base import Base
 from app.models.category import Category
-from app.models.enums import Currency, Language, ProductStatus
+from app.models.enums import Currency, FulfillmentType, Language, ProductStatus
 from app.models.order import Order
 from app.models.product_pool import ProductPool
 from app.models.reservation import Reservation
@@ -71,6 +71,23 @@ def _setup_db_with_seed_prices() -> Session:
     return db
 
 
+def _setup_db_non_stock_category() -> Session:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    db = Session(bind=engine)
+
+    root = Category(name_ru="Услуги", name_en="Services")
+    activation = Category(name_ru="Активация", name_en="Activation", parent=root, fulfillment_type=FulfillmentType.ACTIVATION_TASK)
+    db.add_all([root, activation])
+    db.flush()
+    user = User(telegram_id=777, username="manual", language=Language.EN, currency=Currency.USD)
+    db.add(user)
+    db.flush()
+    db.add(UserCategoryPrice(user_id=user.id, category_id=activation.id, price=Decimal("12.00")))
+    db.commit()
+    return db
+
+
 def test_catalog_price_fallback_for_manual_user() -> None:
     db = _setup_db_with_seed_prices()
     manual_user = User(telegram_id=12345, username="manual", language=Language.EN, currency=Currency.USD)
@@ -121,3 +138,16 @@ def test_buy_from_product_out_of_stock_shows_alert(monkeypatch) -> None:
     asyncio.run(products_handlers.on_buy_product(callback))
 
     assert callback.answers[-1]["show_alert"] is True
+
+
+def test_non_stock_buy_does_not_crash_without_reservation(monkeypatch) -> None:
+    db = _setup_db_non_stock_category()
+    monkeypatch.setattr(products_handlers, "SessionLocal", lambda: Session(bind=db.get_bind()))
+
+    callback = FakeCallback(data="prod:buy:2", message=FakeMessage())
+    asyncio.run(products_handlers.on_buy(callback))
+
+    order = db.scalar(select(Order))
+    assert order is not None
+    assert order.reservation_id is None
+    assert "Order ID" in callback.message.edits[-1]["text"]

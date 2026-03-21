@@ -17,11 +17,30 @@ from app.bot.keyboards.products import (
     top_up_placeholder_keyboard,
 )
 from app.db.session import SessionLocal
+from app.models.enums import FulfillmentType
 from app.services.catalog import get_category_breadcrumbs, get_category_view, get_product_card, list_categories, list_product_cards
-from app.services.purchase import reserve_product_for_user
+from app.services.purchase import create_non_stock_order_for_user, reserve_product_for_user
 from app.services.users import get_user_by_telegram_id, init_or_update_user
 
 router = Router(name="products")
+
+def _fulfillment_label(fulfillment_type: FulfillmentType, language) -> str:
+    return t(f"orders_fulfillment_{fulfillment_type.value}", language)
+
+
+def _availability_label(category, language) -> str:
+    if category.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+        return str(category.stock_count)
+    if category.fulfillment_type == FulfillmentType.ACTIVATION_TASK:
+        return t("products_availability_activation", language)
+    return t("products_availability_supplier", language)
+
+
+def _reservation_id_or_dash(attempt) -> str:
+    reservation = getattr(attempt, "reservation", None)
+    if reservation is None:
+        return "-"
+    return str(reservation.id)
 
 
 async def _resolve_user(message: Message):
@@ -170,7 +189,13 @@ async def on_category(callback: CallbackQuery) -> None:
         title=category.title,
         breadcrumb=breadcrumbs,
         price=price_text,
-        stock=category.stock_count,
+        stock=category.stock_count if category.fulfillment_type == FulfillmentType.DIRECT_STOCK else "∞",
+    )
+    text += "\n" + t("products_fulfillment_line", user.language).format(
+        fulfillment=_fulfillment_label(category.fulfillment_type, user.language)
+    )
+    text += "\n" + t("products_availability_line", user.language).format(
+        availability=_availability_label(category, user.language)
     )
 
     await message.edit_text(
@@ -215,6 +240,9 @@ async def on_product_list(callback: CallbackQuery) -> None:
             price=str(category.price) if category.price is not None else t("products_price_missing", user.language)
         ),
         t("products_stock_line", user.language).format(stock=category.stock_count),
+        t("products_fulfillment_line", user.language).format(
+            fulfillment=_fulfillment_label(category.fulfillment_type, user.language)
+        ),
         "",
     ]
     if cards:
@@ -248,7 +276,7 @@ async def on_product_list(callback: CallbackQuery) -> None:
         "\n".join(lines),
         reply_markup=product_list_keyboard(
             category=category,
-            can_buy=category.stock_count > 0 and category.price is not None,
+            can_buy=category.is_available and category.price is not None,
             language=user.language,
             product_rows=product_rows,
         ),
@@ -333,7 +361,17 @@ async def on_buy(callback: CallbackQuery) -> None:
         language = user.language
         category_title = category.title
         resolved_category_id = category.id
-        attempt = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=category.price)
+        if category.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+            attempt = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=category.price)
+        else:
+            created = create_non_stock_order_for_user(
+                db,
+                user_id=user.id,
+                category_id=category.id,
+                price=category.price,
+                fulfillment_type=category.fulfillment_type,
+            )
+            attempt = created
 
     if not attempt.ok:
         await callback.answer(t("products_no_stock", language), show_alert=True)
@@ -342,7 +380,7 @@ async def on_buy(callback: CallbackQuery) -> None:
     await message.edit_text(
         t("products_reservation_success", language).format(
             title=category_title,
-            reservation_id=attempt.reservation.id,
+            reservation_id=_reservation_id_or_dash(attempt),
             order_id=attempt.order.id,
             price=attempt.order.price,
         ),
@@ -385,13 +423,22 @@ async def on_buy_product(callback: CallbackQuery) -> None:
         language = user.language
         category_title = category.title
         resolved_category_id = category.id
-        attempt = reserve_product_for_user(
-            db,
-            user_id=user.id,
-            category_id=category.id,
-            product_id=product_id,
-            price=category.price,
-        )
+        if category.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+            attempt = reserve_product_for_user(
+                db,
+                user_id=user.id,
+                category_id=category.id,
+                product_id=product_id,
+                price=category.price,
+            )
+        else:
+            attempt = create_non_stock_order_for_user(
+                db,
+                user_id=user.id,
+                category_id=category.id,
+                price=category.price,
+                fulfillment_type=category.fulfillment_type,
+            )
 
     if not attempt.ok:
         await callback.answer(t("products_no_stock", language), show_alert=True)
@@ -400,7 +447,7 @@ async def on_buy_product(callback: CallbackQuery) -> None:
     await message.edit_text(
         t("products_reservation_success", language).format(
             title=category_title,
-            reservation_id=attempt.reservation.id,
+            reservation_id=_reservation_id_or_dash(attempt),
             order_id=attempt.order.id,
             price=attempt.order.price,
         ),

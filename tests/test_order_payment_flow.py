@@ -11,7 +11,7 @@ from app.models.enums import Currency, Language, OrderStatus, ProductStatus, Res
 from app.models.order import Order
 from app.models.product_pool import ProductPool
 from app.models.user import User
-from app.services.orders import pay_pending_order_from_balance
+from app.services.orders import get_user_order_stats, pay_pending_order_from_balance
 from app.services.purchase import reserve_product_for_user
 
 
@@ -122,3 +122,26 @@ def test_order_details_render_includes_delivered_payload() -> None:
     assert f"Order #{order.id} details" in text
     assert "Payload" in text
     assert "secret-key" in text
+
+
+def test_order_details_render_includes_item_title() -> None:
+    db = make_session()
+    user, order = seed_pending_order(db)
+    text = menu_handlers._render_order_details_text(
+        language=Language.EN,
+        order=order,
+        currency=user.currency.value,
+        item_title="Steam Keys",
+    )
+    assert "Item: Steam Keys" in text
+
+
+def test_profile_stats_include_processing_as_paid() -> None:
+    db = make_session()
+    user, order = seed_pending_order(db)
+    order.status = OrderStatus.PROCESSING
+    db.commit()
+
+    stats = get_user_order_stats(db, user_id=user.id)
+    assert stats.total_orders == 1
+    assert stats.total_spent == Decimal("10.00")

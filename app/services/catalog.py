@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
-from app.models.enums import Language, ProductStatus
+from app.models.enums import FulfillmentType, Language, ProductStatus
 from app.models.product_pool import ProductPool
 from app.models.user_category_price import UserCategoryPrice
 
@@ -19,6 +19,9 @@ class CategoryView:
     stock_count: int
     price: Decimal | None
     has_children: bool
+    fulfillment_type: FulfillmentType
+    is_available: bool
+    availability_label: str
 
 
 @dataclass(slots=True)
@@ -83,6 +86,14 @@ def _category_stock(*, category_id: int, children_map: dict[int, list[int]], dir
     return sum(direct_stock.get(descendant_id, 0) for descendant_id in _collect_descendants(category_id, children_map))
 
 
+def _availability_for_category(category: Category, stock_count: int) -> tuple[bool, str]:
+    if category.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+        return stock_count > 0, f"in_stock:{stock_count}"
+    if category.fulfillment_type == FulfillmentType.ACTIVATION_TASK:
+        return True, "activation"
+    return True, "supplier"
+
+
 
 def list_categories(
     db: Session,
@@ -101,14 +112,19 @@ def list_categories(
 
     result: list[CategoryView] = []
     for category in categories:
+        stock_count = _category_stock(category_id=category.id, children_map=children_map, direct_stock=direct_stock)
+        availability, availability_label = _availability_for_category(category, stock_count)
         result.append(
             CategoryView(
                 id=category.id,
                 title=_category_title(category, language),
                 parent_id=category.parent_id,
-                stock_count=_category_stock(category_id=category.id, children_map=children_map, direct_stock=direct_stock),
+                stock_count=stock_count,
                 price=_category_price(db, user_id=user_id, category_id=category.id),
                 has_children=bool(children_map.get(category.id)),
+                fulfillment_type=category.fulfillment_type,
+                is_available=availability,
+                availability_label=availability_label,
             )
         )
 
@@ -128,6 +144,10 @@ def get_category_view(
     if category is None:
         return None
 
+    availability, availability_label = _availability_for_category(
+        category,
+        _category_stock(category_id=category.id, children_map=children_map, direct_stock=direct_stock),
+    )
     return CategoryView(
         id=category.id,
         title=_category_title(category, language),
@@ -135,6 +155,9 @@ def get_category_view(
         stock_count=_category_stock(category_id=category.id, children_map=children_map, direct_stock=direct_stock),
         price=_category_price(db, user_id=user_id, category_id=category.id),
         has_children=bool(children_map.get(category.id)),
+        fulfillment_type=category.fulfillment_type,
+        is_available=availability,
+        availability_label=availability_label,
     )
 
 

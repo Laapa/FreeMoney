@@ -78,6 +78,10 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "💵 Цена: {price} {currency}",
         Language.EN: "💵 Price: {price} {currency}",
     },
+    "orders_item_line": {
+        Language.RU: "🛍 Товар: {item}",
+        Language.EN: "🛍 Item: {item}",
+    },
     "orders_details_delivered_at": {
         Language.RU: "✅ Доставлен: {delivered_at}",
         Language.EN: "✅ Delivered: {delivered_at}",
@@ -116,8 +120,26 @@ TEXTS: dict[str, dict[Language, str]] = {
     },
     "orders_status_pending": {Language.RU: "Ожидает оплаты", Language.EN: "Pending"},
     "orders_status_paid": {Language.RU: "Оплачен", Language.EN: "Paid"},
+    "orders_status_processing": {Language.RU: "В обработке", Language.EN: "Processing"},
     "orders_status_delivered": {Language.RU: "Доставлен", Language.EN: "Delivered"},
     "orders_status_canceled": {Language.RU: "Отменен", Language.EN: "Canceled"},
+    "orders_action_check_payment": {Language.RU: "🔄 Проверить оплату", Language.EN: "🔄 Check payment"},
+    "orders_action_cancel_payment": {Language.RU: "❌ Отменить оплату", Language.EN: "❌ Cancel payment"},
+    "orders_payment_screen": {
+        Language.RU: "Оплата заказа #{id}\nТовар: {title}\nСумма: {amount} {currency}\nМетод: {method}\nСоздан: {created_at}\nОплатить до: {deadline}",
+        Language.EN: "Order #{id} payment\nItem: {title}\nAmount: {amount} {currency}\nMethod: {method}\nCreated: {created_at}\nPay until: {deadline}",
+    },
+    "orders_payment_pending": {
+        Language.RU: "Оплата еще не подтверждена.",
+        Language.EN: "Payment is not confirmed yet.",
+    },
+    "orders_payment_canceled": {
+        Language.RU: "Оплата отменена.",
+        Language.EN: "Payment canceled.",
+    },
+    "orders_fulfillment_direct_stock": {Language.RU: "мгновенная выдача", Language.EN: "instant delivery"},
+    "orders_fulfillment_activation_task": {Language.RU: "активация", Language.EN: "activation"},
+    "orders_fulfillment_manual_supplier": {Language.RU: "под заказ", Language.EN: "manual supplier"},
     "nav_back": {Language.RU: "⬅️ Назад", Language.EN: "⬅️ Back"},
     "nav_main_menu": {Language.RU: "🏠 Главное меню", Language.EN: "🏠 Main menu"},
     "nav_next": {Language.RU: "➡️ Далее", Language.EN: "➡️ Next"},
@@ -173,6 +195,16 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Доступно: {stock}",
         Language.EN: "Available: {stock}",
     },
+    "products_fulfillment_line": {
+        Language.RU: "Исполнение: {fulfillment}",
+        Language.EN: "Fulfillment: {fulfillment}",
+    },
+    "products_availability_line": {
+        Language.RU: "Наличие: {availability}",
+        Language.EN: "Availability: {availability}",
+    },
+    "products_availability_activation": {Language.RU: "по активации", Language.EN: "activation queue"},
+    "products_availability_supplier": {Language.RU: "под заказ", Language.EN: "supplier order"},
     "products_no_stock": {
         Language.RU: "Нет доступных товаров в наличии.",
         Language.EN: "No products available in stock.",

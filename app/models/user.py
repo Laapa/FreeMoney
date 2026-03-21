@@ -14,6 +14,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     telegram_id: Mapped[int] = mapped_column(BIGINT, unique=True, index=True, nullable=False)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    bybit_uid: Mapped[str | None] = mapped_column(String(32), nullable=True)
     language: Mapped[Language] = mapped_column(Enum(Language), default=Language.RU, nullable=False)
     currency: Mapped[Currency] = mapped_column(Enum(Currency), default=Currency.RUB, nullable=False)
     balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)

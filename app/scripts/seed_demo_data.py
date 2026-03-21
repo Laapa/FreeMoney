@@ -60,7 +60,6 @@ def seed_demo_data() -> None:
         products = [
             (steam.id, "DEMO-STEAM-KEY-001"),
             (steam.id, "DEMO-STEAM-KEY-002"),
-            (xbox.id, "DEMO-XBOX-KEY-001"),
         ]
         for category_id, payload in products:
             exists = db.scalar(select(ProductPool).where(ProductPool.payload == payload))

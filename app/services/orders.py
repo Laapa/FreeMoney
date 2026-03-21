@@ -54,7 +54,7 @@ def get_user_order_stats(db: Session, *, user_id: int) -> UserOrderStats:
     total_spent = db.scalar(
         select(func.coalesce(func.sum(Order.price), 0)).where(
             Order.user_id == user_id,
-            Order.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
+            Order.status.in_([OrderStatus.PAID, OrderStatus.PROCESSING, OrderStatus.DELIVERED]),
         )
     )
     if not isinstance(total_spent, Decimal):

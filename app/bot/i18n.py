@@ -78,6 +78,10 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "💵 Цена: {price} {currency}",
         Language.EN: "💵 Price: {price} {currency}",
     },
+    "orders_item_line": {
+        Language.RU: "🛍 Товар: {item}",
+        Language.EN: "🛍 Item: {item}",
+    },
     "orders_details_delivered_at": {
         Language.RU: "✅ Доставлен: {delivered_at}",
         Language.EN: "✅ Delivered: {delivered_at}",

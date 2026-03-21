@@ -36,6 +36,13 @@ def _availability_label(category, language) -> str:
     return t("products_availability_supplier", language)
 
 
+def _reservation_id_or_dash(attempt) -> str:
+    reservation = getattr(attempt, "reservation", None)
+    if reservation is None:
+        return "-"
+    return str(reservation.id)
+
+
 async def _resolve_user(message: Message):
     tg_user = message.from_user
     if tg_user is None:
@@ -373,7 +380,7 @@ async def on_buy(callback: CallbackQuery) -> None:
     await message.edit_text(
         t("products_reservation_success", language).format(
             title=category_title,
-            reservation_id=attempt.reservation.id if attempt.reservation else "-",
+            reservation_id=_reservation_id_or_dash(attempt),
             order_id=attempt.order.id,
             price=attempt.order.price,
         ),
@@ -440,7 +447,7 @@ async def on_buy_product(callback: CallbackQuery) -> None:
     await message.edit_text(
         t("products_reservation_success", language).format(
             title=category_title,
-            reservation_id=attempt.reservation.id if attempt.reservation else "-",
+            reservation_id=_reservation_id_or_dash(attempt),
             order_id=attempt.order.id,
             price=attempt.order.price,
         ),

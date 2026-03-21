@@ -106,6 +106,7 @@ def reserve_product_for_user(
 
     order = Order(
         user_id=user_id,
+        category_id=category_id,
         product_id=reserved_product_id,
         reservation_id=reservation.id,
         price=price,
@@ -152,6 +153,7 @@ def create_non_stock_order_for_user(
 
     order = Order(
         user_id=user_id,
+        category_id=category_id,
         product_id=None,
         reservation_id=None,
         price=price,
@@ -160,6 +162,7 @@ def create_non_stock_order_for_user(
         fulfillment_status=FulfillmentStatus.PENDING,
     )
     db.add(order)
+    db.flush()
     db.add(
         ActivityLog(
             user_id=user_id,

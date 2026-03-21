@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.models.category import Category
+from app.models.activity_log import ActivityLog
 from app.models.enums import FulfillmentStatus, FulfillmentType, Language, OrderStatus, ProductStatus
 from app.models.product_pool import ProductPool
 from app.models.user import User
@@ -86,6 +87,7 @@ def test_purchase_flow_activation_task_transitions_to_processing() -> None:
     assert created.order.status == OrderStatus.PROCESSING
     assert created.order.fulfillment_status == FulfillmentStatus.PROCESSING
     assert created.order.external_task_id is not None
+    assert created.order.category_id == category.id
 
 
 def test_purchase_flow_manual_supplier_transitions_to_processing() -> None:
@@ -108,3 +110,44 @@ def test_purchase_flow_manual_supplier_transitions_to_processing() -> None:
     assert created.order.status == OrderStatus.PROCESSING
     assert created.order.fulfillment_status == FulfillmentStatus.PROCESSING
     assert created.order.supplier_note is not None
+
+
+def test_non_stock_activity_log_has_real_order_id() -> None:
+    db = make_session()
+    user, category = _seed_user_and_category(db, FulfillmentType.MANUAL_SUPPLIER)
+    created = create_non_stock_order_for_user(
+        db,
+        user_id=user.id,
+        category_id=category.id,
+        price=Decimal("9.99"),
+        fulfillment_type=FulfillmentType.MANUAL_SUPPLIER,
+    )
+    assert created.ok is True
+    log = db.query(ActivityLog).order_by(ActivityLog.id.desc()).first()
+    assert log is not None
+    assert log.order_id == created.order.id
+
+
+def test_create_payment_rejects_non_payable_order_statuses() -> None:
+    db = make_session()
+    user, category = _seed_user_and_category(db, FulfillmentType.ACTIVATION_TASK)
+    created = create_non_stock_order_for_user(
+        db,
+        user_id=user.id,
+        category_id=category.id,
+        price=Decimal("9.99"),
+        fulfillment_type=FulfillmentType.ACTIVATION_TASK,
+    )
+    assert created.ok is True
+
+    created.order.status = OrderStatus.CANCELED
+    db.commit()
+    canceled_result = create_order_payment(db, order=created.order)
+    assert canceled_result.ok is False
+    assert canceled_result.reason.startswith("order_not_payable")
+
+    created.order.status = OrderStatus.DELIVERED
+    db.commit()
+    delivered_result = create_order_payment(db, order=created.order)
+    assert delivered_result.ok is False
+    assert delivered_result.reason.startswith("order_not_payable")

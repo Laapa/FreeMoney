@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.models.enums import PaymentMethod, PaymentStatus
+from app.models.enums import OrderStatus, PaymentMethod, PaymentStatus
 from app.models.order import Order
 from app.models.payment import Payment
 from app.services.purchase import apply_payment_status
@@ -34,6 +34,9 @@ def create_order_payment(
     now: datetime | None = None,
     ttl_minutes: int = 30,
 ) -> PaymentCreateResult:
+    if order.status != OrderStatus.PENDING:
+        return PaymentCreateResult(ok=False, reason=f"order_not_payable:{order.status.value}", payment=order.payment)
+
     if order.payment is not None and order.payment.status in {PaymentStatus.PENDING, PaymentStatus.SUCCESS}:
         return PaymentCreateResult(ok=False, reason="payment_already_exists", payment=order.payment)
 

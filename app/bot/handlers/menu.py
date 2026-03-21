@@ -25,6 +25,7 @@ from app.bot.keyboards.account import (
 from app.bot.keyboards.main_menu import MENU_KEYS, main_menu_keyboard, menu_key_by_text
 from app.bot.keyboards.top_up import top_up_main_keyboard
 from app.db.session import SessionLocal
+from app.core.config import get_settings
 from app.models.category import Category
 from app.models.enums import Language, OrderStatus, PaymentMethod
 from app.models.order import Order
@@ -44,6 +45,19 @@ def _format_dt(value) -> str:
 
 def _order_status_label(status: OrderStatus, language: Language) -> str:
     return t(f"orders_status_{status.value}", language)
+
+
+def _payment_method_for_new_invoice() -> PaymentMethod:
+    settings = get_settings()
+    return PaymentMethod.CRYPTO_PAY if settings.cryptopay_api_token else PaymentMethod.TEST_STUB
+
+
+def _payment_method_label(method: PaymentMethod, language: Language) -> str:
+    if method == PaymentMethod.CRYPTO_PAY:
+        return "Crypto Pay"
+    if method == PaymentMethod.TEST_STUB:
+        return "Test Stub"
+    return method.value
 
 
 def _sanitize_payload(payload: str, limit: int = 300) -> str:
@@ -297,7 +311,7 @@ async def on_order_pay(callback: CallbackQuery) -> None:
         if order is None:
             await callback.answer(t("orders_not_found", user.language), show_alert=True)
             return
-        payment_result = create_order_payment(db, order=order, method=PaymentMethod.TEST_STUB)
+        payment_result = create_order_payment(db, order=order, method=_payment_method_for_new_invoice())
         order = get_user_order(db, user_id=user.id, order_id=order_id)
         item_title = None
         if order and order.category_id:
@@ -325,15 +339,17 @@ async def on_order_pay(callback: CallbackQuery) -> None:
             or (f"#{order.product_id}" if order.product_id else t(f"orders_fulfillment_{order.fulfillment_type.value}", user.language)),
             amount=order.price,
             currency=user.currency.value,
-            method=PaymentMethod.TEST_STUB.value,
+            method=_payment_method_label(order.payment.method, user.language) if order and order.payment else "-",
             created_at=_format_dt(order.created_at),
             deadline=_format_dt(order.payment.expires_at) if order.payment and order.payment.expires_at else "-",
         ),
         reply_markup=order_details_keyboard(
             language=user.language,
             order_id=order.id,
-            can_pay=True,
+            can_pay=order.payment is not None and order.payment.method == PaymentMethod.TEST_STUB,
             show_top_up=True,
+            payment_url=order.payment.provider_payment_url if order and order.payment else None,
+            payment_screen=True,
         ),
     )
     await callback.answer()
@@ -365,7 +381,17 @@ async def on_order_check_payment(callback: CallbackQuery) -> None:
         await callback.answer(t("orders_not_found", user.language), show_alert=True)
         return
     if not result.ok:
-        await callback.answer(t("orders_payment_pending", user.language), show_alert=True)
+        if result.reason in {"payment_pending"}:
+            message_key = "orders_payment_pending"
+        elif result.reason in {"payment_expired", "invoice_expired"}:
+            message_key = "orders_payment_expired"
+        elif result.reason in {"invoice_not_found", "invoice_invalid", "invoice_missing"}:
+            message_key = "orders_payment_invalid"
+        elif result.reason in {"cryptopay_unavailable", "cryptopay_not_configured"}:
+            message_key = "orders_payment_unavailable"
+        else:
+            message_key = "orders_payment_pending"
+        await callback.answer(t(message_key, user.language), show_alert=True)
         return
 
     await message.edit_text(

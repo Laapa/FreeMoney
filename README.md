@@ -13,9 +13,12 @@ This document is written for client handoff and developer onboarding.
 - Language selection (RU/EN) on first start.
 - Main menu: products, top-up, profile, orders, rules/support placeholders.
 - Product catalog navigation by category.
-- Product reservation with order creation.
+- Product reservation/order creation with fulfillment types:
+  - `direct_stock` (instant payload delivery),
+  - `activation_task` (paid -> processing activation task),
+  - `manual_supplier` (paid -> manual/supplier processing).
 - Order listing/details.
-- Balance payment and payload delivery flow.
+- Test-mode payment flow (create payment, check payment, cancel payment) ready for later provider wiring.
 - Top-up request flows:
   - crypto (TXID-based verification),
   - Bybit UID / external reference flow (reviewed by operator/manual process).
@@ -201,7 +204,7 @@ If these are unavailable/misconfigured, related flows will degrade or fail.
 
 ### Top-up/payment flows
 - User can top up via crypto TXID or Bybit UID/reference request.
-- User can pay pending orders from balance once sufficient funds are available.
+- User can create and test-confirm order payments in bot UX without real external money movement.
 
 ### Known external dependency
 - Activation service is external and must satisfy expected request/response contract.

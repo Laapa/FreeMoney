@@ -9,6 +9,8 @@ from app.bot.i18n import t
 from app.bot.keyboards.account import (
     CALLBACK_ORDERS_BACK,
     CALLBACK_ORDERS_MENU,
+    CALLBACK_ORDERS_CANCEL_PAYMENT,
+    CALLBACK_ORDERS_CHECK_PAYMENT,
     CALLBACK_ORDERS_OPEN,
     CALLBACK_ORDERS_PAGE,
     CALLBACK_ORDERS_PAY,
@@ -22,11 +24,12 @@ from app.bot.keyboards.account import (
 from app.bot.keyboards.main_menu import MENU_KEYS, main_menu_keyboard, menu_key_by_text
 from app.bot.keyboards.top_up import top_up_main_keyboard
 from app.db.session import SessionLocal
-from app.models.enums import Language, OrderStatus
+from app.models.enums import Language, OrderStatus, PaymentMethod
 from app.models.order import Order
 from app.models.user import User
 from app.bot.handlers.top_up import TopUpStates
-from app.services.orders import count_user_orders, get_user_order, get_user_order_stats, list_user_orders, pay_pending_order_from_balance
+from app.services.orders import count_user_orders, get_user_order, get_user_order_stats, list_user_orders
+from app.services.payments import cancel_order_payment, check_order_payment, create_order_payment
 from app.services.users import get_user_by_telegram_id, init_or_update_user
 
 router = Router(name="menu")
@@ -256,31 +259,14 @@ async def on_order_pay(callback: CallbackQuery) -> None:
     user = _resolve_or_create_user(callback.from_user)
     order_id = int(callback.data.split(":")[-1])
     with SessionLocal() as db:
-        result = pay_pending_order_from_balance(db, user_id=user.id, order_id=order_id)
         order = get_user_order(db, user_id=user.id, order_id=order_id)
-        current_user = get_user_by_telegram_id(db, user.telegram_id)
-
-    if order is None:
-        await callback.answer(t("orders_not_found", user.language), show_alert=True)
-        return
-
-    if not result.ok:
-        if result.reason == "insufficient_balance":
-            await message.edit_text(
-                t("orders_payment_insufficient_balance", user.language).format(
-                    balance=current_user.balance if current_user is not None else user.balance,
-                    currency=user.currency.value,
-                ),
-                reply_markup=order_details_keyboard(
-                    language=user.language,
-                    order_id=order.id,
-                    can_pay=True,
-                    show_top_up=True,
-                ),
-            )
-            await callback.answer()
+        if order is None:
+            await callback.answer(t("orders_not_found", user.language), show_alert=True)
             return
+        payment_result = create_order_payment(db, order=order, method=PaymentMethod.TEST_STUB)
+        order = get_user_order(db, user_id=user.id, order_id=order_id)
 
+    if not payment_result.ok:
         await message.edit_text(
             t("orders_payment_not_available", user.language),
             reply_markup=order_details_keyboard(
@@ -294,17 +280,77 @@ async def on_order_pay(callback: CallbackQuery) -> None:
         return
 
     await message.edit_text(
-        t("orders_payment_success", user.language) + "\n\n" + _render_order_details_text(language=user.language, order=order, currency=user.currency.value),
+        t("orders_payment_screen", user.language).format(
+            id=order.id,
+            title=f"#{order.product_id}" if order.product_id else t(f"orders_fulfillment_{order.fulfillment_type.value}", user.language),
+            amount=order.price,
+            currency=user.currency.value,
+            method=PaymentMethod.TEST_STUB.value,
+            created_at=_format_dt(order.created_at),
+            deadline=_format_dt(order.payment.expires_at) if order.payment and order.payment.expires_at else "-",
+        ),
         reply_markup=order_details_keyboard(
             language=user.language,
             order_id=order.id,
-            can_pay=False,
-            show_top_up=False,
+            can_pay=True,
+            show_top_up=True,
         ),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith(f"{CALLBACK_ORDERS_CHECK_PAYMENT}:"))
+async def on_order_check_payment(callback: CallbackQuery) -> None:
+    message = callback.message
+    if message is None or callback.data is None:
+        await callback.answer()
+        return
+
+    user = _resolve_or_create_user(callback.from_user)
+    order_id = int(callback.data.split(":")[-1])
+    with SessionLocal() as db:
+        order = get_user_order(db, user_id=user.id, order_id=order_id)
+        if order is None:
+            await callback.answer(t("orders_not_found", user.language), show_alert=True)
+            return
+        result = check_order_payment(db, order=order, test_confirm=True)
+        order = get_user_order(db, user_id=user.id, order_id=order_id)
+
+    if order is None:
+        await callback.answer(t("orders_not_found", user.language), show_alert=True)
+        return
+    if not result.ok:
+        await callback.answer(t("orders_payment_pending", user.language), show_alert=True)
+        return
+
+    await message.edit_text(
+        t("orders_payment_success", user.language) + "\n\n" + _render_order_details_text(language=user.language, order=order, currency=user.currency.value),
+        reply_markup=order_details_keyboard(language=user.language, order_id=order.id, can_pay=False, show_top_up=False),
     )
     if order.delivered_payload:
         await message.answer(t("orders_delivery_message", user.language).format(payload=order.delivered_payload))
     await callback.answer(t("orders_payment_success_toast", user.language))
+
+
+@router.callback_query(F.data.startswith(f"{CALLBACK_ORDERS_CANCEL_PAYMENT}:"))
+async def on_order_cancel_payment(callback: CallbackQuery) -> None:
+    message = callback.message
+    if message is None or callback.data is None:
+        await callback.answer()
+        return
+    user = _resolve_or_create_user(callback.from_user)
+    order_id = int(callback.data.split(":")[-1])
+    with SessionLocal() as db:
+        order = get_user_order(db, user_id=user.id, order_id=order_id)
+        if order is None:
+            await callback.answer(t("orders_not_found", user.language), show_alert=True)
+            return
+        result = cancel_order_payment(db, order=order)
+    if not result.ok:
+        await callback.answer(t("orders_payment_not_available", user.language), show_alert=True)
+        return
+    await message.edit_text(t("orders_payment_canceled", user.language), reply_markup=order_details_keyboard(language=user.language, order_id=order_id, can_pay=False, show_top_up=False))
+    await callback.answer()
 
 
 @router.callback_query(F.data == CALLBACK_ORDERS_TOP_UP)

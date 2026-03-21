@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.models.enums import OrderStatus, PaymentStatus, ReservationStatus
+from app.models.enums import OrderStatus, PaymentMethod, PaymentStatus, ReservationStatus
 from app.models.order import Order
 from app.models.payment import Payment
 from app.models.reservation import Reservation
@@ -81,9 +81,10 @@ def pay_pending_order_from_balance(db: Session, *, user_id: int, order_id: int, 
     if order.status != OrderStatus.PENDING:
         return OrderPaymentResult(ok=False, reason="order_not_payable", order=order)
 
-    reservation = db.get(Reservation, order.reservation_id)
-    if reservation is None or reservation.status != ReservationStatus.ACTIVE:
-        return OrderPaymentResult(ok=False, reason="reservation_not_active", order=order)
+    if order.reservation_id is not None:
+        reservation = db.get(Reservation, order.reservation_id)
+        if reservation is None or reservation.status != ReservationStatus.ACTIVE:
+            return OrderPaymentResult(ok=False, reason="reservation_not_active", order=order)
 
     balance_updated = db.execute(
         update(User)
@@ -100,7 +101,13 @@ def pay_pending_order_from_balance(db: Session, *, user_id: int, order_id: int, 
         return OrderPaymentResult(ok=False, reason="already_paid", order=order, payment=payment)
 
     if payment is None:
-        payment = Payment(order_id=order.id, amount=order.price, status=PaymentStatus.CREATED)
+        payment = Payment(
+            order_id=order.id,
+            amount=order.price,
+            status=PaymentStatus.CREATED,
+            method=PaymentMethod.TEST_STUB,
+            provider=PaymentMethod.TEST_STUB.value,
+        )
         db.add(payment)
         db.flush()
     else:

@@ -27,6 +27,7 @@ class ReservationStatus(str, Enum):
 class OrderStatus(str, Enum):
     PENDING = "pending"
     PAID = "paid"
+    PROCESSING = "processing"
     DELIVERED = "delivered"
     CANCELED = "canceled"
 
@@ -37,6 +38,26 @@ class PaymentStatus(str, Enum):
     SUCCESS = "success"
     FAILED = "failed"
     EXPIRED = "expired"
+
+
+class FulfillmentType(str, Enum):
+    DIRECT_STOCK = "direct_stock"
+    ACTIVATION_TASK = "activation_task"
+    MANUAL_SUPPLIER = "manual_supplier"
+
+
+class FulfillmentStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+    CANCELED = "canceled"
+
+
+class PaymentMethod(str, Enum):
+    CRYPTO_PAY = "crypto_pay"
+    BYBIT_UID = "bybit_uid"
+    TEST_STUB = "test_stub"
 
 
 class TopUpMethod(str, Enum):

@@ -10,6 +10,8 @@ from app.db.base import Base
 from app.models.activity_log import ActivityLog
 from app.models.category import Category
 from app.models.enums import (
+    FulfillmentStatus,
+    FulfillmentType,
     LogEventType,
     OrderStatus,
     PaymentStatus,
@@ -80,6 +82,8 @@ def test_reservation_id_remains_unique_for_orders() -> None:
         reservation_id=attempt.reservation.id,
         price=Decimal("10.00"),
         status=OrderStatus.PENDING,
+        fulfillment_type=FulfillmentType.DIRECT_STOCK,
+        fulfillment_status=FulfillmentStatus.PENDING,
     )
     db.add(duplicate_order)
 

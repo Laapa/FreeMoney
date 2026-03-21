@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.models.activity_log import ActivityLog
 from app.models.enums import (
+    FulfillmentStatus,
+    FulfillmentType,
     LogEventType,
     OrderStatus,
     PaymentStatus,
@@ -27,6 +29,13 @@ class ReservationAttemptResult:
     ok: bool
     reason: str
     reservation: Reservation | None = None
+    order: Order | None = None
+
+
+@dataclass(slots=True)
+class OrderCreateResult:
+    ok: bool
+    reason: str
     order: Order | None = None
 
 
@@ -101,6 +110,8 @@ def reserve_product_for_user(
         reservation_id=reservation.id,
         price=price,
         status=OrderStatus.PENDING,
+        fulfillment_type=FulfillmentType.DIRECT_STOCK,
+        fulfillment_status=FulfillmentStatus.PENDING,
     )
     db.add(order)
     db.flush()
@@ -126,6 +137,40 @@ def reserve_product_for_user(
         order.id,
     )
     return ReservationAttemptResult(ok=True, reason="reserved", reservation=reservation, order=order)
+
+
+def create_non_stock_order_for_user(
+    db: Session,
+    *,
+    user_id: int,
+    category_id: int,
+    price: Decimal,
+    fulfillment_type: FulfillmentType,
+) -> OrderCreateResult:
+    if fulfillment_type == FulfillmentType.DIRECT_STOCK:
+        return OrderCreateResult(ok=False, reason="unsupported_for_direct_stock")
+
+    order = Order(
+        user_id=user_id,
+        product_id=None,
+        reservation_id=None,
+        price=price,
+        status=OrderStatus.PENDING,
+        fulfillment_type=fulfillment_type,
+        fulfillment_status=FulfillmentStatus.PENDING,
+    )
+    db.add(order)
+    db.add(
+        ActivityLog(
+            user_id=user_id,
+            order_id=order.id,
+            event_type=LogEventType.RESERVATION_CREATED,
+            payload={"category_id": category_id, "fulfillment_type": fulfillment_type.value},
+        )
+    )
+    db.commit()
+    db.refresh(order)
+    return OrderCreateResult(ok=True, reason="created", order=order)
 
 
 def release_expired_reservations(db: Session, now: datetime | None = None) -> int:
@@ -178,40 +223,57 @@ def apply_payment_status(
 
         delivered_at = now or datetime.utcnow()
         order.status = OrderStatus.PAID
-        reservation.status = ReservationStatus.CONVERTED
-        order.product.status = ProductStatus.SOLD
-        order.delivered_payload = order.product.payload
-        order.delivered_at = delivered_at
-        order.status = OrderStatus.DELIVERED
+        if order.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+            if reservation is not None:
+                reservation.status = ReservationStatus.CONVERTED
+            if order.product is not None:
+                order.product.status = ProductStatus.SOLD
+                order.delivered_payload = order.product.payload
+            order.delivered_at = delivered_at
+            order.status = OrderStatus.DELIVERED
+            order.fulfillment_status = FulfillmentStatus.DELIVERED
+        elif order.fulfillment_type == FulfillmentType.ACTIVATION_TASK:
+            order.status = OrderStatus.PROCESSING
+            order.fulfillment_status = FulfillmentStatus.PROCESSING
+            order.external_task_id = order.external_task_id or f"act-{order.id}"
+            order.supplier_note = "Activation task created and queued."
+        else:
+            order.status = OrderStatus.PROCESSING
+            order.fulfillment_status = FulfillmentStatus.PROCESSING
+            order.supplier_note = "Order sent to supplier/manual processing."
 
         db.add(
             ActivityLog(
                 user_id=order.user_id,
                 order_id=order.id,
-                reservation_id=reservation.id,
+                reservation_id=reservation.id if reservation else None,
                 event_type=LogEventType.SALE_COMPLETED,
                 payload={"product_id": order.product_id, "payment_id": payment.id},
             )
         )
-        db.add(
-            ActivityLog(
-                user_id=order.user_id,
-                order_id=order.id,
-                reservation_id=reservation.id,
-                event_type=LogEventType.DELIVERY_COMPLETED,
-                payload={"product_id": order.product_id, "payment_id": payment.id},
+        if order.fulfillment_status == FulfillmentStatus.DELIVERED:
+            db.add(
+                ActivityLog(
+                    user_id=order.user_id,
+                    order_id=order.id,
+                    reservation_id=reservation.id if reservation else None,
+                    event_type=LogEventType.DELIVERY_COMPLETED,
+                    payload={"product_id": order.product_id, "payment_id": payment.id},
+                )
             )
-        )
-        logger.info("Payment success and delivery completed | order_id=%s payment_id=%s", order.id, payment.id)
+        logger.info("Payment success processed | order_id=%s payment_id=%s", order.id, payment.id)
     elif new_status in {PaymentStatus.FAILED, PaymentStatus.EXPIRED}:
         order.status = OrderStatus.CANCELED
-        reservation.status = ReservationStatus.CANCELED
-        order.product.status = ProductStatus.AVAILABLE
+        order.fulfillment_status = FulfillmentStatus.CANCELED
+        if reservation is not None:
+            reservation.status = ReservationStatus.CANCELED
+        if order.product is not None:
+            order.product.status = ProductStatus.AVAILABLE
         db.add(
             ActivityLog(
                 user_id=order.user_id,
                 order_id=order.id,
-                reservation_id=reservation.id,
+                reservation_id=reservation.id if reservation else None,
                 event_type=LogEventType.PAYMENT_FAILED,
                 payload={"product_id": order.product_id, "payment_id": payment.id, "status": new_status.value},
             )

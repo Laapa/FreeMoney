@@ -231,6 +231,10 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Товар #{product_id}\nКатегория: {title}\nПуть: {breadcrumb}\nЦена: {price}\nСтатус: доступен",
         Language.EN: "Product #{product_id}\nCategory: {title}\nPath: {breadcrumb}\nPrice: {price}\nStatus: available",
     },
+    "products_offer_view": {
+        Language.RU: "Товар: {title}\nОписание: {description}\nЦена: {price}\nИсполнение: {fulfillment}\nДоступность: {availability}",
+        Language.EN: "Offer: {title}\nDescription: {description}\nPrice: {price}\nFulfillment: {fulfillment}\nAvailability: {availability}",
+    },
     "products_product_not_available": {
         Language.RU: "Товар уже недоступен. Выберите другой из списка.",
         Language.EN: "This product is no longer available. Please choose another one.",

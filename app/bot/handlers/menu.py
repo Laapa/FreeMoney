@@ -26,7 +26,7 @@ from app.bot.keyboards.main_menu import MENU_KEYS, main_menu_keyboard, menu_key_
 from app.bot.keyboards.top_up import top_up_main_keyboard
 from app.db.session import SessionLocal
 from app.core.config import get_settings
-from app.models.category import Category
+from app.models.offer import Offer
 from app.models.enums import Language, OrderStatus, PaymentMethod
 from app.models.order import Order
 from app.models.user import User
@@ -164,12 +164,10 @@ async def _show_orders(message: Message, user: User, page: int = 1) -> None:
         pages = ceil(total / ORDERS_PER_PAGE)
         page = max(1, min(page, pages))
         orders = list_user_orders(db, user_id=user.id, limit=ORDERS_PER_PAGE, offset=(page - 1) * ORDERS_PER_PAGE)
-        category_ids = {order.category_id for order in orders if order.category_id is not None}
-        category_titles: dict[int, str] = {}
-        if category_ids:
-            categories = db.scalars(select(Category).where(Category.id.in_(category_ids))).all()
-            category_titles = {cat.id: cat.name_ru if user.language == Language.RU else cat.name_en for cat in categories}
-        order_item_titles = {order.id: category_titles.get(order.category_id, f"Category #{order.category_id}") for order in orders if order.category_id}
+        offer_ids = {order.offer_id for order in orders}
+        offers = db.scalars(select(Offer).where(Offer.id.in_(offer_ids))).all() if offer_ids else []
+        offer_titles = {offer.id: offer.name_ru if user.language == Language.RU else offer.name_en for offer in offers}
+        order_item_titles = {order.id: offer_titles.get(order.offer_id, f"Offer #{order.offer_id}") for order in orders}
 
     await message.answer(
         _render_orders_text(
@@ -188,6 +186,8 @@ async def _show_orders(message: Message, user: User, page: int = 1) -> None:
 async def menu_handler(message: Message) -> None:
     tg_user = message.from_user
     if tg_user is None or not message.text:
+        return
+    if message.text.startswith("/"):
         return
 
     key = menu_key_by_text(message.text)
@@ -252,12 +252,10 @@ async def on_orders_page(callback: CallbackQuery) -> None:
         pages = ceil(total / ORDERS_PER_PAGE)
         page = max(1, min(page, pages))
         orders = list_user_orders(db, user_id=user.id, limit=ORDERS_PER_PAGE, offset=(page - 1) * ORDERS_PER_PAGE)
-        category_ids = {order.category_id for order in orders if order.category_id is not None}
-        category_titles: dict[int, str] = {}
-        if category_ids:
-            categories = db.scalars(select(Category).where(Category.id.in_(category_ids))).all()
-            category_titles = {cat.id: cat.name_ru if user.language == Language.RU else cat.name_en for cat in categories}
-        order_item_titles = {order.id: category_titles.get(order.category_id, f"Category #{order.category_id}") for order in orders if order.category_id}
+        offer_ids = {order.offer_id for order in orders}
+        offers = db.scalars(select(Offer).where(Offer.id.in_(offer_ids))).all() if offer_ids else []
+        offer_titles = {offer.id: offer.name_ru if user.language == Language.RU else offer.name_en for offer in offers}
+        order_item_titles = {order.id: offer_titles.get(order.offer_id, f"Offer #{order.offer_id}") for order in orders}
 
     await message.edit_text(
         _render_orders_text(
@@ -289,10 +287,9 @@ async def on_order_open(callback: CallbackQuery) -> None:
             await callback.answer(t("orders_not_found", user.language), show_alert=True)
             return
         item_title = None
-        if order.category_id:
-            category = db.get(Category, order.category_id)
-            if category is not None:
-                item_title = category.name_ru if user.language == Language.RU else category.name_en
+        offer = db.get(Offer, order.offer_id)
+        if offer is not None:
+            item_title = offer.name_ru if user.language == Language.RU else offer.name_en
 
     await message.edit_text(
         _render_order_details_text(language=user.language, order=order, currency=user.currency.value, item_title=item_title),
@@ -323,10 +320,10 @@ async def on_order_pay(callback: CallbackQuery) -> None:
         payment_result = create_order_payment(db, order=order, method=_payment_method_for_new_invoice())
         order = get_user_order(db, user_id=user.id, order_id=order_id)
         item_title = None
-        if order and order.category_id:
-            category = db.get(Category, order.category_id)
-            if category is not None:
-                item_title = category.name_ru if user.language == Language.RU else category.name_en
+        if order:
+            offer = db.get(Offer, order.offer_id)
+            if offer is not None:
+                item_title = offer.name_ru if user.language == Language.RU else offer.name_en
 
     if not payment_result.ok:
         await message.edit_text(
@@ -381,10 +378,10 @@ async def on_order_check_payment(callback: CallbackQuery) -> None:
         result = check_order_payment(db, order=order, test_confirm=True)
         order = get_user_order(db, user_id=user.id, order_id=order_id)
         item_title = None
-        if order and order.category_id:
-            category = db.get(Category, order.category_id)
-            if category is not None:
-                item_title = category.name_ru if user.language == Language.RU else category.name_en
+        if order:
+            offer = db.get(Offer, order.offer_id)
+            if offer is not None:
+                item_title = offer.name_ru if user.language == Language.RU else offer.name_en
 
     if order is None:
         await callback.answer(t("orders_not_found", user.language), show_alert=True)

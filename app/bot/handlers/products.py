@@ -6,59 +6,44 @@ from app.bot.keyboards.main_menu import main_menu_keyboard
 from app.bot.keyboards.products import (
     CALLBACK_MENU,
     CALLBACK_ROOT,
-    CALLBACK_TOP_UP,
-    buy_product_callback,
+    buy_offer_callback,
     categories_keyboard,
-    category_view_keyboard,
-    open_product_callback,
-    product_card_keyboard,
-    product_list_keyboard,
+    category_callback,
+    offer_callback,
+    offer_card_keyboard,
+    offers_keyboard,
     reservation_success_keyboard,
-    top_up_placeholder_keyboard,
 )
+from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.enums import FulfillmentType
-from app.services.catalog import get_category_breadcrumbs, get_category_view, get_product_card, list_categories, list_product_cards
 from app.services.admin import is_admin_telegram_id
+from app.services.catalog import get_category_view, get_offer_view, list_categories, list_offers
 from app.services.purchase import create_non_stock_order_for_user, reserve_product_for_user
 from app.services.users import get_user_by_telegram_id, init_or_update_user
-from app.core.config import get_settings
 
 router = Router(name="products")
 
-def _fulfillment_label(fulfillment_type: FulfillmentType, language) -> str:
-    return t(f"orders_fulfillment_{fulfillment_type.value}", language)
 
-
-def _availability_label(category, language) -> str:
-    if category.fulfillment_type == FulfillmentType.DIRECT_STOCK:
-        return str(category.stock_count)
-    if category.fulfillment_type == FulfillmentType.ACTIVATION_TASK:
+def _availability_label(offer, language) -> str:
+    if offer.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+        return str(offer.stock_count)
+    if offer.fulfillment_type == FulfillmentType.ACTIVATION_TASK:
         return t("products_availability_activation", language)
     return t("products_availability_supplier", language)
-
-
-def _reservation_id_or_dash(attempt) -> str:
-    reservation = getattr(attempt, "reservation", None)
-    if reservation is None:
-        return "-"
-    return str(reservation.id)
 
 
 async def _resolve_user(message: Message):
     tg_user = message.from_user
     if tg_user is None:
         return None
-
     with SessionLocal() as db:
-        user = get_user_by_telegram_id(db, tg_user.id)
-        if user is None:
-            user = init_or_update_user(
-                db,
-                telegram_id=tg_user.id,
-                username=tg_user.username,
-                language_code=tg_user.language_code,
-            )
+        user = get_user_by_telegram_id(db, tg_user.id) or init_or_update_user(
+            db,
+            telegram_id=tg_user.id,
+            username=tg_user.username,
+            language_code=tg_user.language_code,
+        )
         return user
 
 
@@ -66,399 +51,118 @@ async def show_root_categories(message: Message) -> None:
     user = await _resolve_user(message)
     if user is None:
         return
-
     with SessionLocal() as db:
-        categories = list_categories(db, user_id=user.id, language=user.language, parent_id=None)
-
+        categories = list_categories(db, language=user.language)
     if not categories:
         await message.answer(t("products_empty", user.language))
         return
-
-    await message.answer(
-        t("products_root_title", user.language),
-        reply_markup=categories_keyboard(categories, user.language),
-    )
+    await message.answer(t("products_root_title", user.language), reply_markup=categories_keyboard(categories, user.language))
 
 
 @router.callback_query(F.data == CALLBACK_MENU)
 async def on_main_menu(callback: CallbackQuery) -> None:
-    message = callback.message
-    tg_user = callback.from_user
-    if message is None:
-        await callback.answer()
+    if callback.message is None:
         return
-
     with SessionLocal() as db:
-        user = get_user_by_telegram_id(db, tg_user.id)
-        if user is None:
-            user = init_or_update_user(
-                db,
-                telegram_id=tg_user.id,
-                username=tg_user.username,
-                language_code=tg_user.language_code,
-            )
-
-    await message.answer(
+        user = get_user_by_telegram_id(db, callback.from_user.id) or init_or_update_user(
+            db, telegram_id=callback.from_user.id, username=callback.from_user.username, language_code=callback.from_user.language_code
+        )
+    await callback.message.answer(
         t("start", user.language),
-        reply_markup=main_menu_keyboard(
-            user.language,
-            is_admin=is_admin_telegram_id(user.telegram_id, get_settings().admin_telegram_ids),
-        ),
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith(CALLBACK_TOP_UP))
-async def on_top_up_placeholder(callback: CallbackQuery) -> None:
-    message = callback.message
-    tg_user = callback.from_user
-    if message is None or callback.data is None:
-        await callback.answer()
-        return
-
-    with SessionLocal() as db:
-        user = get_user_by_telegram_id(db, tg_user.id)
-        if user is None:
-            user = init_or_update_user(
-                db,
-                telegram_id=tg_user.id,
-                username=tg_user.username,
-                language_code=tg_user.language_code,
-            )
-
-    category_id = int(callback.data.split(":")[-1])
-    await message.edit_text(
-        t("top_up_placeholder", user.language),
-        reply_markup=top_up_placeholder_keyboard(category_id=category_id, language=user.language),
+        reply_markup=main_menu_keyboard(user.language, is_admin=is_admin_telegram_id(user.telegram_id, get_settings().admin_telegram_ids)),
     )
     await callback.answer()
 
 
 @router.callback_query(F.data == CALLBACK_ROOT)
 async def on_root(callback: CallbackQuery) -> None:
-    message = callback.message
-    tg_user = callback.from_user
-    if message is None:
-        await callback.answer()
+    if callback.message is None:
         return
-
     with SessionLocal() as db:
-        user = get_user_by_telegram_id(db, tg_user.id)
-        if user is None:
-            user = init_or_update_user(
-                db,
-                telegram_id=tg_user.id,
-                username=tg_user.username,
-                language_code=tg_user.language_code,
-            )
-        categories = list_categories(db, user_id=user.id, language=user.language, parent_id=None)
-
-    if not categories:
-        await callback.answer(t("products_empty", user.language), show_alert=True)
-        return
-
-    await message.edit_text(
-        t("products_root_title", user.language),
-        reply_markup=categories_keyboard(categories, user.language),
-    )
+        user = get_user_by_telegram_id(db, callback.from_user.id) or init_or_update_user(
+            db, telegram_id=callback.from_user.id, username=callback.from_user.username, language_code=callback.from_user.language_code
+        )
+        categories = list_categories(db, language=user.language)
+    await callback.message.edit_text(t("products_root_title", user.language), reply_markup=categories_keyboard(categories, user.language))
     await callback.answer()
 
 
 @router.callback_query(F.data.startswith("prod:cat:"))
 async def on_category(callback: CallbackQuery) -> None:
-    message = callback.message
-    tg_user = callback.from_user
-    if message is None:
-        await callback.answer()
+    if callback.message is None:
         return
-
     category_id = int(callback.data.split(":")[-1])
-
     with SessionLocal() as db:
-        user = get_user_by_telegram_id(db, tg_user.id)
-        if user is None:
-            user = init_or_update_user(
-                db,
-                telegram_id=tg_user.id,
-                username=tg_user.username,
-                language_code=tg_user.language_code,
-            )
-
-        category = get_category_view(db, user_id=user.id, language=user.language, category_id=category_id)
-        if category is None:
-            await callback.answer(t("products_category_not_found", user.language), show_alert=True)
-            return
-
-        children = list_categories(db, user_id=user.id, language=user.language, parent_id=category.id)
-        breadcrumbs = " / ".join(get_category_breadcrumbs(db, category_id=category.id, language=user.language))
-
-    price_text = str(category.price) if category.price is not None else t("products_price_missing", user.language)
-    text = t("products_category_view", user.language).format(
-        title=category.title,
-        breadcrumb=breadcrumbs,
-        price=price_text,
-        stock=category.stock_count if category.fulfillment_type == FulfillmentType.DIRECT_STOCK else "∞",
-    )
-    text += "\n" + t("products_fulfillment_line", user.language).format(
-        fulfillment=_fulfillment_label(category.fulfillment_type, user.language)
-    )
-    text += "\n" + t("products_availability_line", user.language).format(
-        availability=_availability_label(category, user.language)
-    )
-
-    await message.edit_text(
-        text,
-        reply_markup=category_view_keyboard(category=category, subcategories=children, language=user.language),
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("prod:list:"))
-async def on_product_list(callback: CallbackQuery) -> None:
-    message = callback.message
-    tg_user = callback.from_user
-    if message is None:
-        await callback.answer()
-        return
-
-    category_id = int(callback.data.split(":")[-1])
-
-    with SessionLocal() as db:
-        user = get_user_by_telegram_id(db, tg_user.id)
-        if user is None:
-            user = init_or_update_user(
-                db,
-                telegram_id=tg_user.id,
-                username=tg_user.username,
-                language_code=tg_user.language_code,
-            )
-
-        category = get_category_view(db, user_id=user.id, language=user.language, category_id=category_id)
-        if category is None:
-            await callback.answer(t("products_category_not_found", user.language), show_alert=True)
-            return
-
-        cards = list_product_cards(db, category_id=category.id)
-        breadcrumbs = " / ".join(get_category_breadcrumbs(db, category_id=category.id, language=user.language))
-
-    lines = [
-        t("products_list_title", user.language).format(title=category.title),
-        t("products_breadcrumb_line", user.language).format(path=breadcrumbs),
-        t("products_price_line", user.language).format(
-            price=str(category.price) if category.price is not None else t("products_price_missing", user.language)
-        ),
-        t("products_stock_line", user.language).format(stock=category.stock_count),
-        t("products_fulfillment_line", user.language).format(
-            fulfillment=_fulfillment_label(category.fulfillment_type, user.language)
-        ),
-        "",
-    ]
-    if cards:
-        for index, card in enumerate(cards, start=1):
-            lines.append(
-                t("products_card_line", user.language).format(
-                    idx=index,
-                    product_id=card.product_id,
-                    price=str(category.price) if category.price is not None else t("products_price_missing", user.language),
-                )
-            )
-    else:
-        lines.append(t("products_no_stock", user.language))
-
-    product_rows = []
-    for card in cards:
-        product_rows.append(
-            [
-                {
-                    "text": f"#{card.product_id} · {t('products_open_product', user.language)}",
-                    "callback_data": open_product_callback(category.id, card.product_id),
-                },
-                {
-                    "text": t("products_reserve_item", user.language),
-                    "callback_data": buy_product_callback(category.id, card.product_id),
-                },
-            ]
+        user = get_user_by_telegram_id(db, callback.from_user.id) or init_or_update_user(
+            db, telegram_id=callback.from_user.id, username=callback.from_user.username, language_code=callback.from_user.language_code
         )
-
-    await message.edit_text(
-        "\n".join(lines),
-        reply_markup=product_list_keyboard(
-            category=category,
-            can_buy=category.is_available and category.price is not None,
-            language=user.language,
-            product_rows=product_rows,
-        ),
+        category = get_category_view(db, language=user.language, category_id=category_id)
+        offers = list_offers(db, user_id=user.id, language=user.language, category_id=category_id)
+    if category is None:
+        await callback.answer(t("products_category_not_found", user.language), show_alert=True)
+        return
+    await callback.message.edit_text(
+        t("products_list_title", user.language).format(title=category.title),
+        reply_markup=offers_keyboard(offers=offers, category_id=category.id, language=user.language),
     )
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("prod:item:"))
-async def on_product_view(callback: CallbackQuery) -> None:
-    message = callback.message
-    tg_user = callback.from_user
-    if message is None or callback.data is None:
-        await callback.answer()
+@router.callback_query(F.data.startswith("prod:offer:"))
+async def on_offer(callback: CallbackQuery) -> None:
+    if callback.message is None:
         return
-
-    _, _, raw_category_id, raw_product_id = callback.data.split(":")
-    category_id = int(raw_category_id)
-    product_id = int(raw_product_id)
-
+    offer_id = int(callback.data.split(":")[-1])
     with SessionLocal() as db:
-        user = get_user_by_telegram_id(db, tg_user.id)
-        if user is None:
-            user = init_or_update_user(
-                db,
-                telegram_id=tg_user.id,
-                username=tg_user.username,
-                language_code=tg_user.language_code,
-            )
-        category = get_category_view(db, user_id=user.id, language=user.language, category_id=category_id)
-        if category is None:
-            await callback.answer(t("products_category_not_found", user.language), show_alert=True)
-            return
-
-        card = get_product_card(db, category_id=category.id, product_id=product_id)
-        if card is None:
-            await callback.answer(t("products_product_not_available", user.language), show_alert=True)
-            return
-
-        breadcrumbs = " / ".join(get_category_breadcrumbs(db, category_id=category.id, language=user.language))
-
-    await message.edit_text(
-        t("products_product_view", user.language).format(
-            product_id=card.product_id,
-            title=category.title,
-            breadcrumb=breadcrumbs,
-            price=str(category.price) if category.price is not None else t("products_price_missing", user.language),
+        user = get_user_by_telegram_id(db, callback.from_user.id) or init_or_update_user(
+            db, telegram_id=callback.from_user.id, username=callback.from_user.username, language_code=callback.from_user.language_code
+        )
+        offer = get_offer_view(db, user_id=user.id, language=user.language, offer_id=offer_id)
+    if offer is None:
+        await callback.answer(t("products_product_not_available", user.language), show_alert=True)
+        return
+    await callback.message.edit_text(
+        t("products_offer_view", user.language).format(
+            title=offer.title,
+            price=str(offer.price) if offer.price is not None else t("products_price_missing", user.language),
+            fulfillment=t(f"orders_fulfillment_{offer.fulfillment_type.value}", user.language),
+            availability=_availability_label(offer, user.language),
+            description=offer.description or "-",
         ),
-        reply_markup=product_card_keyboard(category_id=category.id, product_id=card.product_id, language=user.language),
+        reply_markup=offer_card_keyboard(offer=offer, language=user.language),
     )
     await callback.answer()
 
 
 @router.callback_query(F.data.startswith("prod:buy:"))
 async def on_buy(callback: CallbackQuery) -> None:
-    message = callback.message
-    tg_user = callback.from_user
-    if message is None:
-        await callback.answer()
+    if callback.message is None:
         return
-
-    category_id = int(callback.data.split(":")[-1])
-
+    offer_id = int(callback.data.split(":")[-1])
     with SessionLocal() as db:
-        user = get_user_by_telegram_id(db, tg_user.id)
-        if user is None:
-            user = init_or_update_user(
-                db,
-                telegram_id=tg_user.id,
-                username=tg_user.username,
-                language_code=tg_user.language_code,
-            )
-
-        category = get_category_view(db, user_id=user.id, language=user.language, category_id=category_id)
-        if category is None:
-            await callback.answer(t("products_category_not_found", user.language), show_alert=True)
+        user = get_user_by_telegram_id(db, callback.from_user.id) or init_or_update_user(
+            db, telegram_id=callback.from_user.id, username=callback.from_user.username, language_code=callback.from_user.language_code
+        )
+        offer = get_offer_view(db, user_id=user.id, language=user.language, offer_id=offer_id)
+        if offer is None or offer.price is None:
+            await callback.answer(t("products_product_not_available", user.language), show_alert=True)
             return
-
-        if category.price is None:
-            await callback.answer(t("products_price_missing", user.language), show_alert=True)
-            return
-
-        language = user.language
-        category_title = category.title
-        resolved_category_id = category.id
-        if category.fulfillment_type == FulfillmentType.DIRECT_STOCK:
-            attempt = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=category.price)
-        else:
-            created = create_non_stock_order_for_user(
-                db,
-                user_id=user.id,
-                category_id=category.id,
-                price=category.price,
-                fulfillment_type=category.fulfillment_type,
-            )
-            attempt = created
-
-    if not attempt.ok:
-        await callback.answer(t("products_no_stock", language), show_alert=True)
-        return
-
-    await message.edit_text(
-        t("products_reservation_success", language).format(
-            title=category_title,
-            reservation_id=_reservation_id_or_dash(attempt),
-            order_id=attempt.order.id,
-            price=attempt.order.price,
-        ),
-        reply_markup=reservation_success_keyboard(category_id=resolved_category_id, language=language),
-    )
-    await callback.answer(t("products_reserved_toast", language))
-
-
-@router.callback_query(F.data.startswith("prod:itembuy:"))
-async def on_buy_product(callback: CallbackQuery) -> None:
-    message = callback.message
-    tg_user = callback.from_user
-    if message is None or callback.data is None:
-        await callback.answer()
-        return
-
-    _, _, raw_category_id, raw_product_id = callback.data.split(":")
-    category_id = int(raw_category_id)
-    product_id = int(raw_product_id)
-
-    with SessionLocal() as db:
-        user = get_user_by_telegram_id(db, tg_user.id)
-        if user is None:
-            user = init_or_update_user(
-                db,
-                telegram_id=tg_user.id,
-                username=tg_user.username,
-                language_code=tg_user.language_code,
-            )
-
-        category = get_category_view(db, user_id=user.id, language=user.language, category_id=category_id)
-        if category is None:
-            await callback.answer(t("products_category_not_found", user.language), show_alert=True)
-            return
-
-        if category.price is None:
-            await callback.answer(t("products_price_missing", user.language), show_alert=True)
-            return
-
-        language = user.language
-        category_title = category.title
-        resolved_category_id = category.id
-        if category.fulfillment_type == FulfillmentType.DIRECT_STOCK:
-            attempt = reserve_product_for_user(
-                db,
-                user_id=user.id,
-                category_id=category.id,
-                product_id=product_id,
-                price=category.price,
-            )
+        if offer.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+            attempt = reserve_product_for_user(db, user_id=user.id, offer_id=offer.id, price=offer.price)
         else:
             attempt = create_non_stock_order_for_user(
-                db,
-                user_id=user.id,
-                category_id=category.id,
-                price=category.price,
-                fulfillment_type=category.fulfillment_type,
+                db, user_id=user.id, offer_id=offer.id, price=offer.price, fulfillment_type=offer.fulfillment_type
             )
-
     if not attempt.ok:
-        await callback.answer(t("products_no_stock", language), show_alert=True)
+        await callback.answer(t("products_no_stock", user.language), show_alert=True)
         return
-
-    await message.edit_text(
-        t("products_reservation_success", language).format(
-            title=category_title,
-            reservation_id=_reservation_id_or_dash(attempt),
+    await callback.message.edit_text(
+        t("products_reservation_success", user.language).format(
+            title=offer.title,
+            reservation_id=attempt.reservation.id if attempt.reservation else "-",
             order_id=attempt.order.id,
             price=attempt.order.price,
         ),
-        reply_markup=reservation_success_keyboard(category_id=resolved_category_id, language=language),
+        reply_markup=reservation_success_keyboard(category_id=offer.category_id, language=user.language),
     )
-    await callback.answer(t("products_reserved_toast", language))
+    await callback.answer(t("products_reserved_toast", user.language))

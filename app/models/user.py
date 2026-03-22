@@ -22,5 +22,5 @@ class User(Base):
 
     orders = relationship("Order", back_populates="user")
     reservations = relationship("Reservation", back_populates="user")
-    category_prices = relationship("UserCategoryPrice", back_populates="user")
+    offer_prices = relationship("UserOfferPrice", back_populates="user")
     top_up_requests = relationship("TopUpRequest", back_populates="user")

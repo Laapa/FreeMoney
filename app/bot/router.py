@@ -13,5 +13,5 @@ def setup_routers(dp: Dispatcher) -> None:
     dp.include_router(language_router)
     dp.include_router(products_router)
     dp.include_router(top_up_router)
-    dp.include_router(menu_router)
     dp.include_router(admin_router)
+    dp.include_router(menu_router)

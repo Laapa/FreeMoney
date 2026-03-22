@@ -14,7 +14,7 @@ class Order(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True, index=True)
+    offer_id: Mapped[int] = mapped_column(ForeignKey("offers.id"), nullable=False, index=True)
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products_pool.id"), nullable=True)
     reservation_id: Mapped[int | None] = mapped_column(ForeignKey("reservations.id"), nullable=True, index=True)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
@@ -30,7 +30,7 @@ class Order(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="orders")
-    category = relationship("Category")
+    offer = relationship("Offer")
     product = relationship("ProductPool", back_populates="orders")
     reservation = relationship("Reservation", back_populates="order")
     payment = relationship("Payment", back_populates="order", uselist=False)

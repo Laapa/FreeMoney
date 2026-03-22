@@ -43,12 +43,11 @@ def _category_price(db: Session, *, user_id: int, category_id: int) -> Decimal |
     if personal_price is not None:
         return personal_price
 
-    return db.scalar(
-        select(UserCategoryPrice.price)
-        .where(UserCategoryPrice.category_id == category_id)
-        .order_by(UserCategoryPrice.id.asc())
-        .limit(1)
-    )
+    category = db.get(Category, category_id)
+    if category and category.base_price is not None:
+        return category.base_price
+
+    return db.scalar(select(UserCategoryPrice.price).where(UserCategoryPrice.category_id == category_id).order_by(UserCategoryPrice.id.asc()).limit(1))
 
 
 def _children_map(db: Session) -> dict[int, list[int]]:
@@ -107,6 +106,7 @@ def list_categories(
     categories = db.scalars(
         select(Category)
         .where(Category.parent_id == parent_id)
+        .where(Category.is_active.is_(True))
         .order_by(Category.id)
     ).all()
 
@@ -141,7 +141,7 @@ def get_category_view(
     children_map = _children_map(db)
     direct_stock = _direct_stock_map(db)
     category = db.get(Category, category_id)
-    if category is None:
+    if category is None or not category.is_active:
         return None
 
     availability, availability_label = _availability_for_category(

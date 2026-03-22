@@ -45,6 +45,7 @@ class Settings(BaseSettings):
 
     activation_api_base_url: str = Field(default="http://127.0.0.1:9000", alias="ACTIVATION_API_BASE_URL")
     activation_api_timeout_seconds: float = Field(default=10.0, alias="ACTIVATION_API_TIMEOUT_SECONDS")
+    admin_telegram_ids_raw: str = Field(default="", alias="ADMIN_TELEGRAM_IDS")
 
     @property
     def cryptopay_effective_api_base_url(self) -> str:
@@ -53,6 +54,17 @@ class Settings(BaseSettings):
         if self.cryptopay_use_testnet:
             return "https://testnet-pay.crypt.bot/api"
         return "https://pay.crypt.bot/api"
+
+    @property
+    def admin_telegram_ids(self) -> set[int]:
+        parsed: set[int] = set()
+        for value in self.admin_telegram_ids_raw.split(","):
+            stripped = value.strip()
+            if not stripped:
+                continue
+            if stripped.isdigit():
+                parsed.add(int(stripped))
+        return parsed
 
 
 @lru_cache(maxsize=1)

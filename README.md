@@ -1,8 +1,9 @@
 # WEBSTER-SHOP MVP Backend (Telegram Bot + Activation Website)
 
 WEBSTER-SHOP is an MVP backend that includes:
-- a Telegram shop bot (catalog browsing, reservation, order payment from balance, top-up request flows),
+- a Telegram shop bot (catalog browsing, reservation, order payment via Crypto Pay, top-up request flows),
 - an activation website (`/activation`) for final account/product activation,
+- a Telegram admin panel MVP (catalog, prices, orders, direct stock pool),
 - supporting API endpoints, database models, and migrations.
 
 This document is written for client handoff and developer onboarding.
@@ -18,9 +19,8 @@ This document is written for client handoff and developer onboarding.
   - `activation_task` (paid -> processing activation task),
   - `manual_supplier` (paid -> manual/supplier processing).
 - Order listing/details.
-- Parallel payment flows:
-  - Crypto Pay real invoices (`provider=crypto_pay`) when `CRYPTOPAY_API_TOKEN` is configured,
-  - test stub flow (`provider=test_stub`) when Crypto Pay token is not configured.
+- Main order payment flow: Crypto Pay real invoices (`provider=crypto_pay`).
+- Test stub flow (`provider=test_stub`) is kept for local tests/dev fallback.
 - Top-up request flows:
   - crypto (TXID-based verification),
   - Bybit UID / external reference flow (reviewed by operator/manual process).
@@ -156,6 +156,7 @@ It updates the existing user balance and prints the new total.
 ## Required
 - `DATABASE_URL` — database DSN (SQLite is default/recommended for local/runtime).
 - `TELEGRAM_BOT_TOKEN` — required for Telegram bot runtime.
+- `ADMIN_TELEGRAM_IDS` — comma-separated Telegram IDs allowed in bot admin panel.
 - `ACTIVATION_API_BASE_URL` — external activation API base URL.
 
 ## Important optional
@@ -209,7 +210,10 @@ If these are unavailable/misconfigured, related flows will degrade or fail.
 - RU/EN onboarding
 - catalog browsing + reservation
 - orders list/details
-- pay-from-balance and instant delivery payload
+- Crypto Pay order payment (invoice/create/check)
+- instant delivery payload for `direct_stock`
+- processing orders for `activation_task` and `manual_supplier`
+- admin panel in Telegram (`/admin` or “🛠 Админка” for whitelisted IDs)
 - top-up request creation and status tracking
 
 ### Activation website MVP scope

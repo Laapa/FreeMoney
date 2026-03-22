@@ -19,8 +19,10 @@ from app.bot.keyboards.products import (
 from app.db.session import SessionLocal
 from app.models.enums import FulfillmentType
 from app.services.catalog import get_category_breadcrumbs, get_category_view, get_product_card, list_categories, list_product_cards
+from app.services.admin import is_admin_telegram_id
 from app.services.purchase import create_non_stock_order_for_user, reserve_product_for_user
 from app.services.users import get_user_by_telegram_id, init_or_update_user
+from app.core.config import get_settings
 
 router = Router(name="products")
 
@@ -96,7 +98,13 @@ async def on_main_menu(callback: CallbackQuery) -> None:
                 language_code=tg_user.language_code,
             )
 
-    await message.answer(t("start", user.language), reply_markup=main_menu_keyboard(user.language))
+    await message.answer(
+        t("start", user.language),
+        reply_markup=main_menu_keyboard(
+            user.language,
+            is_admin=is_admin_telegram_id(user.telegram_id, get_settings().admin_telegram_ids),
+        ),
+    )
     await callback.answer()
 
 

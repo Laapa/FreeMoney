@@ -8,6 +8,8 @@ from app.bot.keyboards.main_menu import main_menu_keyboard
 from app.models.enums import Language
 from app.db.session import SessionLocal
 from app.services.users import get_user_by_telegram_id, init_or_update_user
+from app.services.admin import is_admin_telegram_id
+from app.core.config import get_settings
 
 router = Router(name="start")
 
@@ -34,4 +36,10 @@ async def start_handler(message: Message) -> None:
             await show_language_selection(message, language_hint=Language.EN, include_back_to_menu=False)
             return
 
-    await message.answer(t("start", user.language), reply_markup=main_menu_keyboard(user.language))
+    await message.answer(
+        t("start", user.language),
+        reply_markup=main_menu_keyboard(
+            user.language,
+            is_admin=is_admin_telegram_id(user.telegram_id, get_settings().admin_telegram_ids),
+        ),
+    )

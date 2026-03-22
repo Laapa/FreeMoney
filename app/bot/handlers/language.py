@@ -8,6 +8,8 @@ from app.bot.keyboards.main_menu import main_menu_keyboard
 from app.db.session import SessionLocal
 from app.models.enums import Language
 from app.services.users import get_user_by_telegram_id, init_or_update_user, set_user_language
+from app.services.admin import is_admin_telegram_id
+from app.core.config import get_settings
 
 router = Router(name="language")
 
@@ -69,5 +71,11 @@ async def on_language_selected(callback: CallbackQuery) -> None:
         user = set_user_language(db, user=user, language=selected_language)
 
     await message.answer(t("language_saved", selected_language))
-    await message.answer(t("start", selected_language), reply_markup=main_menu_keyboard(selected_language))
+    await message.answer(
+        t("start", selected_language),
+        reply_markup=main_menu_keyboard(
+            selected_language,
+            is_admin=is_admin_telegram_id(callback.from_user.id, get_settings().admin_telegram_ids),
+        ),
+    )
     await callback.answer()

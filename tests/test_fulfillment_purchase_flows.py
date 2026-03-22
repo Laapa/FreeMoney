@@ -86,7 +86,7 @@ def test_purchase_flow_activation_task_transitions_to_processing() -> None:
     db.refresh(created.order)
     assert created.order.status == OrderStatus.PROCESSING
     assert created.order.fulfillment_status == FulfillmentStatus.PROCESSING
-    assert created.order.external_task_id is not None
+    assert created.order.supplier_note is not None
     assert created.order.category_id == category.id
 
 

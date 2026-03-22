@@ -34,6 +34,7 @@ from app.bot.handlers.top_up import TopUpStates
 from app.services.orders import count_user_orders, get_user_order, get_user_order_stats, list_user_orders
 from app.services.payments import cancel_order_payment, check_order_payment, create_order_payment
 from app.services.users import get_user_by_telegram_id, init_or_update_user
+from app.services.admin import is_admin_telegram_id
 
 router = Router(name="menu")
 ORDERS_PER_PAGE = 5
@@ -127,6 +128,11 @@ def _resolve_or_create_user(tg_user) -> User:
         return user
 
 
+def _main_menu_for_user(user: User) -> object:
+    is_admin = is_admin_telegram_id(user.telegram_id, get_settings().admin_telegram_ids)
+    return main_menu_keyboard(user.language, is_admin=is_admin)
+
+
 async def _show_profile(message: Message, user: User) -> None:
     with SessionLocal() as db:
         stats = get_user_order_stats(db, user_id=user.id)
@@ -152,7 +158,7 @@ async def _show_orders(message: Message, user: User, page: int = 1) -> None:
     with SessionLocal() as db:
         total = count_user_orders(db, user_id=user.id)
         if total == 0:
-            await message.answer(t("orders_empty", user.language), reply_markup=main_menu_keyboard(user.language))
+            await message.answer(t("orders_empty", user.language), reply_markup=_main_menu_for_user(user))
             return
 
         pages = ceil(total / ORDERS_PER_PAGE)
@@ -206,9 +212,12 @@ async def menu_handler(message: Message) -> None:
         "menu_rules": "rules_placeholder",
         "menu_support": "support_placeholder",
     }
+    if key == "menu_admin":
+        await message.answer("Откройте /admin", reply_markup=_main_menu_for_user(user))
+        return
     if key == "menu_top_up":
         return
-    await message.answer(t(placeholders[key], user.language), reply_markup=main_menu_keyboard(user.language))
+    await message.answer(t(placeholders[key], user.language), reply_markup=_main_menu_for_user(user))
 
 
 @router.callback_query(F.data.in_({CALLBACK_PROFILE_BACK, CALLBACK_PROFILE_MENU, CALLBACK_ORDERS_BACK, CALLBACK_ORDERS_MENU}))
@@ -219,7 +228,7 @@ async def on_menu_return(callback: CallbackQuery) -> None:
         return
 
     user = _resolve_or_create_user(callback.from_user)
-    await message.answer(t("start", user.language), reply_markup=main_menu_keyboard(user.language))
+    await message.answer(t("start", user.language), reply_markup=_main_menu_for_user(user))
     await callback.answer()
 
 
@@ -236,7 +245,7 @@ async def on_orders_page(callback: CallbackQuery) -> None:
     with SessionLocal() as db:
         total = count_user_orders(db, user_id=user.id)
         if total == 0:
-            await message.answer(t("orders_empty", user.language), reply_markup=main_menu_keyboard(user.language))
+            await message.answer(t("orders_empty", user.language), reply_markup=_main_menu_for_user(user))
             await callback.answer()
             return
 

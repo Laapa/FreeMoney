@@ -3,18 +3,18 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from app.bot.i18n import t
 from app.models.enums import Language
 
-MENU_KEYS = ["menu_products", "menu_top_up", "menu_profile", "menu_orders", "menu_rules", "menu_support"]
+MENU_KEYS = ["menu_products", "menu_top_up", "menu_profile", "menu_orders", "menu_rules", "menu_support", "menu_admin"]
 
 
-def main_menu_keyboard(language: Language) -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=t("menu_products", language)), KeyboardButton(text=t("menu_top_up", language))],
-            [KeyboardButton(text=t("menu_profile", language)), KeyboardButton(text=t("menu_orders", language))],
-            [KeyboardButton(text=t("menu_rules", language)), KeyboardButton(text=t("menu_support", language))],
-        ],
-        resize_keyboard=True,
-    )
+def main_menu_keyboard(language: Language, *, is_admin: bool = False) -> ReplyKeyboardMarkup:
+    keyboard = [
+        [KeyboardButton(text=t("menu_products", language)), KeyboardButton(text=t("menu_top_up", language))],
+        [KeyboardButton(text=t("menu_profile", language)), KeyboardButton(text=t("menu_orders", language))],
+        [KeyboardButton(text=t("menu_rules", language)), KeyboardButton(text=t("menu_support", language))],
+    ]
+    if is_admin:
+        keyboard.append([KeyboardButton(text=t("menu_admin", language))])
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 
 def menu_key_by_text(text: str) -> str | None:

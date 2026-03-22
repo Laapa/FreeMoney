@@ -238,8 +238,7 @@ def apply_payment_status(
         elif order.fulfillment_type == FulfillmentType.ACTIVATION_TASK:
             order.status = OrderStatus.PROCESSING
             order.fulfillment_status = FulfillmentStatus.PROCESSING
-            order.external_task_id = order.external_task_id or f"act-{order.id}"
-            order.supplier_note = "Activation task created and queued."
+            order.supplier_note = "Payment received. Activation task dispatch pending."
         else:
             order.status = OrderStatus.PROCESSING
             order.fulfillment_status = FulfillmentStatus.PROCESSING

@@ -30,6 +30,8 @@ from app.services.top_up_requests import (
 from app.services.blockchain.options import SupportedCryptoOption, get_supported_crypto_options
 from app.services.top_up_statuses import TopUpRequestTransitionError
 from app.services.users import get_user_by_telegram_id, init_or_update_user
+from app.services.admin import is_admin_telegram_id
+from app.core.config import get_settings
 
 router = Router(name="top_up")
 
@@ -77,7 +79,13 @@ async def back_to_main_menu(message: Message, state: FSMContext) -> None:
         return
     user = _resolve_or_create_user(message.from_user)
     await state.clear()
-    await message.answer(t("start", user.language), reply_markup=main_menu_keyboard(user.language))
+    await message.answer(
+        t("start", user.language),
+        reply_markup=main_menu_keyboard(
+            user.language,
+            is_admin=is_admin_telegram_id(user.telegram_id, get_settings().admin_telegram_ids),
+        ),
+    )
 
 
 @router.message(TopUpStates.choosing_method, F.text.in_({t("nav_back", Language.RU), t("nav_back", Language.EN)}))

@@ -21,6 +21,7 @@ TEXTS: dict[str, dict[Language, str]] = {
     "menu_orders": {Language.RU: "📦 Заказы", Language.EN: "📦 Orders"},
     "menu_rules": {Language.RU: "📜 Правила", Language.EN: "📜 Rules"},
     "menu_support": {Language.RU: "🛟 Поддержка", Language.EN: "🛟 Support"},
+    "menu_admin": {Language.RU: "🛠 Админка", Language.EN: "🛠 Admin"},
     "profile_title": {Language.RU: "Ваш профиль", Language.EN: "Your profile"},
     "profile_change_language": {Language.RU: "🌐 Сменить язык", Language.EN: "🌐 Change language"},
     "profile_body": {

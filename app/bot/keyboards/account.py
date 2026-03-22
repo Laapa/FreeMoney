@@ -73,6 +73,7 @@ def order_details_keyboard(
     can_pay: bool,
     show_top_up: bool,
     payment_url: str | None = None,
+    activation_url: str | None = None,
     payment_screen: bool = False,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
@@ -80,6 +81,8 @@ def order_details_keyboard(
         rows.append([InlineKeyboardButton(text=t("orders_action_pay", language), callback_data=order_pay_callback(order_id))])
     if payment_url:
         rows.append([InlineKeyboardButton(text=t("orders_action_open_payment", language), url=payment_url)])
+    if activation_url:
+        rows.append([InlineKeyboardButton(text=t("orders_action_open_activation", language), url=activation_url)])
     if can_pay or payment_screen:
         rows.append(
             [

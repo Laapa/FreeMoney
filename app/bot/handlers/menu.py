@@ -187,6 +187,8 @@ async def menu_handler(message: Message) -> None:
     tg_user = message.from_user
     if tg_user is None or not message.text:
         return
+    if message.text.startswith("/"):
+        return
 
     key = menu_key_by_text(message.text)
     if key not in MENU_KEYS:

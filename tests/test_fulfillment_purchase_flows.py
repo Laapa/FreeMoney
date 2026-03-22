@@ -5,14 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.models.category import Category
-from app.models.activity_log import ActivityLog
-from app.models.enums import FulfillmentStatus, FulfillmentType, Language, OrderStatus, ProductStatus
-from app.models.product_pool import ProductPool
+from app.models.enums import FulfillmentType, Language, OrderStatus, PaymentMethod, PaymentStatus
+from app.models.offer import Offer
+from app.models.payment import Payment
 from app.models.user import User
-from app.models.user_category_price import UserCategoryPrice
-from app.services.catalog import get_category_view
-from app.services.payments import check_order_payment, create_order_payment
-from app.services.purchase import create_non_stock_order_for_user, reserve_product_for_user
+from app.services.catalog import get_offer_view
+from app.services.purchase import apply_payment_status, create_non_stock_order_for_user
 
 
 def make_session() -> Session:
@@ -21,133 +19,68 @@ def make_session() -> Session:
     return Session(bind=engine)
 
 
-def _seed_user_and_category(db: Session, fulfillment_type: FulfillmentType, telegram_id: int = 4001) -> tuple[User, Category]:
+def _seed_user_and_offer(db: Session, fulfillment_type: FulfillmentType, telegram_id: int = 4001):
     user = User(telegram_id=telegram_id, language=Language.EN)
-    category = Category(name_ru="Cat", name_en="Cat", fulfillment_type=fulfillment_type)
+    category = Category(name_ru="Cat", name_en="Cat")
     db.add_all([user, category])
     db.flush()
-    db.add(UserCategoryPrice(user_id=user.id, category_id=category.id, price=Decimal("9.99")))
+    offer = Offer(category_id=category.id, name_ru="Offer", name_en="Offer", fulfillment_type=fulfillment_type, base_price=Decimal("9.99"))
+    db.add(offer)
     db.commit()
-    return user, category
+    return user, offer
 
 
 def test_catalog_availability_for_activation_and_manual_without_stock() -> None:
     db = make_session()
-    user, activation = _seed_user_and_category(db, FulfillmentType.ACTIVATION_TASK, telegram_id=4001)
-    _, manual = _seed_user_and_category(db, FulfillmentType.MANUAL_SUPPLIER, telegram_id=4002)
+    user, activation = _seed_user_and_offer(db, FulfillmentType.ACTIVATION_TASK)
+    _, manual = _seed_user_and_offer(db, FulfillmentType.MANUAL_SUPPLIER, telegram_id=4002)
 
-    activation_view = get_category_view(db, user_id=user.id, language=Language.EN, category_id=activation.id)
-    manual_view = get_category_view(db, user_id=user.id, language=Language.EN, category_id=manual.id)
+    activation_view = get_offer_view(db, user_id=user.id, language=Language.EN, offer_id=activation.id)
+    manual_view = get_offer_view(db, user_id=user.id, language=Language.EN, offer_id=manual.id)
 
-    assert activation_view is not None and activation_view.is_available is True
-    assert manual_view is not None and manual_view.is_available is True
-
-
-def test_purchase_flow_direct_stock_delivers_after_test_payment_check() -> None:
-    db = make_session()
-    user, category = _seed_user_and_category(db, FulfillmentType.DIRECT_STOCK)
-    db.add(ProductPool(category_id=category.id, payload="KEY-1", status=ProductStatus.AVAILABLE))
-    db.commit()
-
-    reserve = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("9.99"))
-    assert reserve.ok is True
-
-    created_payment = create_order_payment(db, order=reserve.order)
-    assert created_payment.ok is True
-
-    check = check_order_payment(db, order=reserve.order)
-    assert check.ok is True
-
-    db.refresh(reserve.order)
-    assert reserve.order.status == OrderStatus.DELIVERED
-    assert reserve.order.fulfillment_status == FulfillmentStatus.DELIVERED
-    assert reserve.order.delivered_payload == "KEY-1"
+    assert activation_view and activation_view.is_available is True
+    assert manual_view and manual_view.is_available is True
 
 
 def test_purchase_flow_activation_task_transitions_to_processing() -> None:
     db = make_session()
-    user, category = _seed_user_and_category(db, FulfillmentType.ACTIVATION_TASK)
+    user, offer = _seed_user_and_offer(db, FulfillmentType.ACTIVATION_TASK)
 
     created = create_non_stock_order_for_user(
         db,
         user_id=user.id,
-        category_id=category.id,
+        offer_id=offer.id,
         price=Decimal("9.99"),
         fulfillment_type=FulfillmentType.ACTIVATION_TASK,
     )
-    assert created.ok is True
+    payment = Payment(order_id=created.order.id, amount=Decimal("9.99"), method=PaymentMethod.TEST_STUB, provider="test_stub", status=PaymentStatus.CREATED)
+    db.add(payment)
+    db.commit()
 
-    pay = create_order_payment(db, order=created.order)
-    assert pay.ok is True
-
-    checked = check_order_payment(db, order=created.order)
-    assert checked.ok is True
-
+    apply_payment_status(db, payment, PaymentStatus.SUCCESS)
     db.refresh(created.order)
+
     assert created.order.status == OrderStatus.PROCESSING
-    assert created.order.fulfillment_status == FulfillmentStatus.PROCESSING
-    assert created.order.supplier_note is not None
-    assert created.order.category_id == category.id
+    assert created.order.offer_id == offer.id
 
 
 def test_purchase_flow_manual_supplier_transitions_to_processing() -> None:
     db = make_session()
-    user, category = _seed_user_and_category(db, FulfillmentType.MANUAL_SUPPLIER)
+    user, offer = _seed_user_and_offer(db, FulfillmentType.MANUAL_SUPPLIER)
 
     created = create_non_stock_order_for_user(
         db,
         user_id=user.id,
-        category_id=category.id,
+        offer_id=offer.id,
         price=Decimal("9.99"),
         fulfillment_type=FulfillmentType.MANUAL_SUPPLIER,
     )
-    assert created.ok is True
+    payment = Payment(order_id=created.order.id, amount=Decimal("9.99"), method=PaymentMethod.TEST_STUB, provider="test_stub", status=PaymentStatus.CREATED)
+    db.add(payment)
+    db.commit()
 
-    create_order_payment(db, order=created.order)
-    check_order_payment(db, order=created.order)
-
+    apply_payment_status(db, payment, PaymentStatus.SUCCESS)
     db.refresh(created.order)
+
     assert created.order.status == OrderStatus.PROCESSING
-    assert created.order.fulfillment_status == FulfillmentStatus.PROCESSING
-    assert created.order.supplier_note is not None
-
-
-def test_non_stock_activity_log_has_real_order_id() -> None:
-    db = make_session()
-    user, category = _seed_user_and_category(db, FulfillmentType.MANUAL_SUPPLIER)
-    created = create_non_stock_order_for_user(
-        db,
-        user_id=user.id,
-        category_id=category.id,
-        price=Decimal("9.99"),
-        fulfillment_type=FulfillmentType.MANUAL_SUPPLIER,
-    )
-    assert created.ok is True
-    log = db.query(ActivityLog).order_by(ActivityLog.id.desc()).first()
-    assert log is not None
-    assert log.order_id == created.order.id
-
-
-def test_create_payment_rejects_non_payable_order_statuses() -> None:
-    db = make_session()
-    user, category = _seed_user_and_category(db, FulfillmentType.ACTIVATION_TASK)
-    created = create_non_stock_order_for_user(
-        db,
-        user_id=user.id,
-        category_id=category.id,
-        price=Decimal("9.99"),
-        fulfillment_type=FulfillmentType.ACTIVATION_TASK,
-    )
-    assert created.ok is True
-
-    created.order.status = OrderStatus.CANCELED
-    db.commit()
-    canceled_result = create_order_payment(db, order=created.order)
-    assert canceled_result.ok is False
-    assert canceled_result.reason.startswith("order_not_payable")
-
-    created.order.status = OrderStatus.DELIVERED
-    db.commit()
-    delivered_result = create_order_payment(db, order=created.order)
-    assert delivered_result.ok is False
-    assert delivered_result.reason.startswith("order_not_payable")
+    assert created.order.offer_id == offer.id

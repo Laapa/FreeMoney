@@ -12,6 +12,7 @@ from app.bot.keyboards.admin import admin_menu_keyboard
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.enums import FulfillmentType, OrderStatus
+from app.models.offer import Offer
 from app.models.order import Order
 from app.services import admin as admin_service
 from app.services.fulfillment import refresh_activation_task_status
@@ -168,9 +169,17 @@ async def admin_orders(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     with SessionLocal() as db:
         orders = admin_service.list_recent_orders(db)
+        offer_ids = {o.offer_id for o in orders}
+        offers = db.query(Offer).filter(Offer.id.in_(offer_ids)).all() if offer_ids else []
+        offer_map = {o.id: o for o in offers}
     lines = ["Последние заказы:"]
     for order in orders:
-        lines.append(f"#{order.id} user={order.user_id} offer={order.offer_id} amount={order.price} status={order.status.value}")
+        offer = offer_map.get(order.offer_id)
+        offer_name = offer.name_ru if offer else f"offer#{order.offer_id}"
+        category_name = offer.category.name_ru if offer and offer.category else "-"
+        lines.append(
+            f"#{order.id} user={order.user_id} cat={category_name} offer={offer_name} amount={order.price} status={order.status.value}"
+        )
     lines += ["", "Manual status: MANUAL|order_id|delivered/canceled", "Activation refresh: ACT|order_id"]
     await callback.message.answer("\n".join(lines))
     await state.set_state(AdminStates.wait_manual_order_status)

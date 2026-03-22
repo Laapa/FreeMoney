@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.models.category import Category
-from app.models.enums import Language, OrderStatus, ProductStatus
-from app.models.product_pool import ProductPool
+from app.models.enums import FulfillmentType, Language, OrderStatus
+from app.models.offer import Offer
 from app.models.user import User
+from app.services.admin import add_direct_stock_payload
 from app.services.orders import get_user_order_stats, list_user_orders
 from app.services.purchase import reserve_product_for_user
 from app.services.users import init_or_update_user, resolve_language
@@ -45,16 +46,14 @@ def test_list_user_orders_sorted_desc() -> None:
     category = Category(name_ru="Категория", name_en="Category")
     db.add_all([user, category])
     db.flush()
-    db.add_all(
-        [
-            ProductPool(category_id=category.id, payload="item-1", status=ProductStatus.AVAILABLE),
-            ProductPool(category_id=category.id, payload="item-2", status=ProductStatus.AVAILABLE),
-        ]
-    )
-    db.commit()
+    offer = Offer(category_id=category.id, name_ru="Offer", name_en="Offer", fulfillment_type=FulfillmentType.DIRECT_STOCK)
+    db.add(offer)
+    db.flush()
+    add_direct_stock_payload(db, offer_id=offer.id, payload="item-1")
+    add_direct_stock_payload(db, offer_id=offer.id, payload="item-2")
 
-    first = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("1.00"))
-    second = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("2.00"))
+    first = reserve_product_for_user(db, user_id=user.id, offer_id=offer.id, price=Decimal("1.00"))
+    second = reserve_product_for_user(db, user_id=user.id, offer_id=offer.id, price=Decimal("2.00"))
 
     orders = list_user_orders(db, user_id=user.id, limit=1, offset=0)
     assert [o.id for o in orders] == [second.order.id]
@@ -69,10 +68,12 @@ def test_get_user_order_stats() -> None:
     category = Category(name_ru="Категория", name_en="Category")
     db.add_all([user, category])
     db.flush()
-    db.add(ProductPool(category_id=category.id, payload="item-1", status=ProductStatus.AVAILABLE))
-    db.commit()
+    offer = Offer(category_id=category.id, name_ru="Offer", name_en="Offer", fulfillment_type=FulfillmentType.DIRECT_STOCK)
+    db.add(offer)
+    db.flush()
+    add_direct_stock_payload(db, offer_id=offer.id, payload="item-1")
 
-    attempt = reserve_product_for_user(db, user_id=user.id, category_id=category.id, price=Decimal("3.50"))
+    attempt = reserve_product_for_user(db, user_id=user.id, offer_id=offer.id, price=Decimal("3.50"))
     attempt.order.status = OrderStatus.DELIVERED
     db.commit()
 

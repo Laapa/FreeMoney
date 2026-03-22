@@ -16,6 +16,7 @@ from app.models.enums import (
     ProductStatus,
     ReservationStatus,
 )
+from app.models.offer import Offer
 from app.models.order import Order
 from app.models.payment import Payment
 from app.models.product_pool import ProductPool
@@ -43,7 +44,7 @@ def reserve_product_for_user(
     db: Session,
     *,
     user_id: int,
-    category_id: int,
+    offer_id: int,
     price: Decimal,
     ttl_minutes: int = 15,
     now: datetime | None = None,
@@ -54,10 +55,7 @@ def reserve_product_for_user(
 
     query = (
         select(ProductPool.id)
-        .where(
-            ProductPool.category_id == category_id,
-            ProductPool.status == ProductStatus.AVAILABLE,
-        )
+        .where(ProductPool.offer_id == offer_id, ProductPool.status == ProductStatus.AVAILABLE)
         .order_by(ProductPool.id)
         .limit(max_attempts)
     )
@@ -65,21 +63,15 @@ def reserve_product_for_user(
         query = query.where(ProductPool.id == product_id).limit(1)
 
     candidate_ids = db.scalars(query).all()
-
     if not candidate_ids:
-        logger.info("Reservation failed: no stock | user_id=%s category_id=%s", user_id, category_id)
         return ReservationAttemptResult(ok=False, reason="no_stock_available")
 
     reserved_product_id: int | None = None
     had_conflict = False
-
     for candidate_id in candidate_ids:
         update_result = db.execute(
             update(ProductPool)
-            .where(
-                ProductPool.id == candidate_id,
-                ProductPool.status == ProductStatus.AVAILABLE,
-            )
+            .where(ProductPool.id == candidate_id, ProductPool.status == ProductStatus.AVAILABLE)
             .values(status=ProductStatus.RESERVED)
         )
         if update_result.rowcount == 1:
@@ -89,11 +81,7 @@ def reserve_product_for_user(
 
     if reserved_product_id is None:
         db.rollback()
-        logger.warning("Reservation conflict | user_id=%s category_id=%s", user_id, category_id)
-        return ReservationAttemptResult(
-            ok=False,
-            reason="reservation_conflict" if had_conflict else "no_stock_available",
-        )
+        return ReservationAttemptResult(ok=False, reason="reservation_conflict" if had_conflict else "no_stock_available")
 
     reservation = Reservation(
         user_id=user_id,
@@ -104,14 +92,15 @@ def reserve_product_for_user(
     db.add(reservation)
     db.flush()
 
+    offer = db.get(Offer, offer_id)
     order = Order(
         user_id=user_id,
-        category_id=category_id,
+        offer_id=offer_id,
         product_id=reserved_product_id,
         reservation_id=reservation.id,
         price=price,
         status=OrderStatus.PENDING,
-        fulfillment_type=FulfillmentType.DIRECT_STOCK,
+        fulfillment_type=offer.fulfillment_type if offer else FulfillmentType.DIRECT_STOCK,
         fulfillment_status=FulfillmentStatus.PENDING,
     )
     db.add(order)
@@ -123,20 +112,13 @@ def reserve_product_for_user(
             reservation_id=reservation.id,
             order_id=order.id,
             event_type=LogEventType.RESERVATION_CREATED,
-            payload={"product_id": reserved_product_id, "category_id": category_id},
+            payload={"product_id": reserved_product_id, "offer_id": offer_id},
         )
     )
 
     db.commit()
     db.refresh(reservation)
     db.refresh(order)
-    logger.info(
-        "Reservation created | user_id=%s category_id=%s reservation_id=%s order_id=%s",
-        user_id,
-        category_id,
-        reservation.id,
-        order.id,
-    )
     return ReservationAttemptResult(ok=True, reason="reserved", reservation=reservation, order=order)
 
 
@@ -144,7 +126,7 @@ def create_non_stock_order_for_user(
     db: Session,
     *,
     user_id: int,
-    category_id: int,
+    offer_id: int,
     price: Decimal,
     fulfillment_type: FulfillmentType,
 ) -> OrderCreateResult:
@@ -153,7 +135,7 @@ def create_non_stock_order_for_user(
 
     order = Order(
         user_id=user_id,
-        category_id=category_id,
+        offer_id=offer_id,
         product_id=None,
         reservation_id=None,
         price=price,
@@ -168,7 +150,7 @@ def create_non_stock_order_for_user(
             user_id=user_id,
             order_id=order.id,
             event_type=LogEventType.RESERVATION_CREATED,
-            payload={"category_id": category_id, "fulfillment_type": fulfillment_type.value},
+            payload={"offer_id": offer_id, "fulfillment_type": fulfillment_type.value},
         )
     )
     db.commit()
@@ -179,10 +161,7 @@ def create_non_stock_order_for_user(
 def release_expired_reservations(db: Session, now: datetime | None = None) -> int:
     current_time = now or datetime.utcnow()
     expired = db.scalars(
-        select(Reservation).where(
-            Reservation.status == ReservationStatus.ACTIVE,
-            Reservation.reserved_until < current_time,
-        )
+        select(Reservation).where(Reservation.status == ReservationStatus.ACTIVE, Reservation.reserved_until < current_time)
     ).all()
 
     for reservation in expired:
@@ -190,19 +169,8 @@ def release_expired_reservations(db: Session, now: datetime | None = None) -> in
         reservation.product.status = ProductStatus.AVAILABLE
         if reservation.order and reservation.order.status == OrderStatus.PENDING:
             reservation.order.status = OrderStatus.CANCELED
-        db.add(
-            ActivityLog(
-                user_id=reservation.user_id,
-                reservation_id=reservation.id,
-                order_id=reservation.order.id if reservation.order else None,
-                event_type=LogEventType.RESERVATION_EXPIRED,
-                payload={"product_id": reservation.product_id},
-            )
-        )
 
     db.commit()
-    if expired:
-        logger.info("Expired reservations released | count=%s", len(expired))
     return len(expired)
 
 
@@ -243,27 +211,6 @@ def apply_payment_status(
             order.status = OrderStatus.PROCESSING
             order.fulfillment_status = FulfillmentStatus.PROCESSING
             order.supplier_note = "Order sent to supplier/manual processing."
-
-        db.add(
-            ActivityLog(
-                user_id=order.user_id,
-                order_id=order.id,
-                reservation_id=reservation.id if reservation else None,
-                event_type=LogEventType.SALE_COMPLETED,
-                payload={"product_id": order.product_id, "payment_id": payment.id},
-            )
-        )
-        if order.fulfillment_status == FulfillmentStatus.DELIVERED:
-            db.add(
-                ActivityLog(
-                    user_id=order.user_id,
-                    order_id=order.id,
-                    reservation_id=reservation.id if reservation else None,
-                    event_type=LogEventType.DELIVERY_COMPLETED,
-                    payload={"product_id": order.product_id, "payment_id": payment.id},
-                )
-            )
-        logger.info("Payment success processed | order_id=%s payment_id=%s", order.id, payment.id)
     elif new_status in {PaymentStatus.FAILED, PaymentStatus.EXPIRED}:
         order.status = OrderStatus.CANCELED
         order.fulfillment_status = FulfillmentStatus.CANCELED
@@ -271,16 +218,6 @@ def apply_payment_status(
             reservation.status = ReservationStatus.CANCELED
         if order.product is not None:
             order.product.status = ProductStatus.AVAILABLE
-        db.add(
-            ActivityLog(
-                user_id=order.user_id,
-                order_id=order.id,
-                reservation_id=reservation.id if reservation else None,
-                event_type=LogEventType.PAYMENT_FAILED,
-                payload={"product_id": order.product_id, "payment_id": payment.id, "status": new_status.value},
-            )
-        )
-        logger.warning("Payment failed/expired | order_id=%s payment_id=%s status=%s", order.id, payment.id, new_status.value)
 
     if auto_commit:
         db.commit()

@@ -44,7 +44,7 @@ def dispatch_activation_task_for_order(
     payload = {
         "order_id": order.id,
         "user_id": order.user_id,
-        "category_id": order.category_id,
+        "offer_id": order.offer_id,
     }
     try:
         response = activation_client.create_task(code_hash=f"order-{order.id}", user_token=payload)

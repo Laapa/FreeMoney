@@ -7,87 +7,70 @@ from sqlalchemy import select
 from app.db.session import SessionLocal
 from app.models.category import Category
 from app.models.enums import Currency, FulfillmentType, Language, ProductStatus
+from app.models.offer import Offer
 from app.models.product_pool import ProductPool
 from app.models.user import User
-from app.models.user_category_price import UserCategoryPrice
+from app.models.user_offer_price import UserOfferPrice
 
 
-def _get_or_create_category(
-    db,
-    *,
-    name_ru: str,
-    name_en: str,
-    parent_id: int | None = None,
-    fulfillment_type: FulfillmentType = FulfillmentType.DIRECT_STOCK,
-) -> Category:
-    existing = db.scalar(
-        select(Category).where(Category.name_en == name_en, Category.parent_id == parent_id)
-    )
+def _get_or_create_category(db, *, name_ru: str, name_en: str) -> Category:
+    existing = db.scalar(select(Category).where(Category.name_en == name_en))
     if existing:
-        existing.fulfillment_type = fulfillment_type
         return existing
-    category = Category(name_ru=name_ru, name_en=name_en, parent_id=parent_id, fulfillment_type=fulfillment_type)
+    category = Category(name_ru=name_ru, name_en=name_en, is_active=True)
     db.add(category)
     db.flush()
     return category
 
 
+def _get_or_create_offer(db, *, category_id: int, name_ru: str, name_en: str, fulfillment_type: FulfillmentType) -> Offer:
+    existing = db.scalar(select(Offer).where(Offer.category_id == category_id, Offer.name_en == name_en))
+    if existing:
+        return existing
+    offer = Offer(
+        category_id=category_id,
+        name_ru=name_ru,
+        name_en=name_en,
+        fulfillment_type=fulfillment_type,
+        is_active=True,
+        base_price=Decimal("10.00"),
+    )
+    db.add(offer)
+    db.flush()
+    return offer
+
+
 def seed_demo_data() -> None:
     with SessionLocal() as db:
-        root_games = _get_or_create_category(db, name_ru="Игры", name_en="Games")
-        steam = _get_or_create_category(
-            db,
-            name_ru="Steam Keys",
-            name_en="Steam Keys",
-            parent_id=root_games.id,
-            fulfillment_type=FulfillmentType.DIRECT_STOCK,
+        steam_cat = _get_or_create_category(db, name_ru="Steam Accounts", name_en="Steam Accounts")
+        activation_cat = _get_or_create_category(db, name_ru="ChatGPT", name_en="ChatGPT")
+        supplier_cat = _get_or_create_category(db, name_ru="Spotify", name_en="Spotify")
+
+        steam_offer = _get_or_create_offer(
+            db, category_id=steam_cat.id, name_ru="GTA 5 Steam Account", name_en="GTA 5 Steam Account", fulfillment_type=FulfillmentType.DIRECT_STOCK
         )
-        xbox = _get_or_create_category(
-            db,
-            name_ru="Activation Service",
-            name_en="Activation Service",
-            parent_id=root_games.id,
-            fulfillment_type=FulfillmentType.ACTIVATION_TASK,
+        activation_offer = _get_or_create_offer(
+            db, category_id=activation_cat.id, name_ru="ChatGPT Plus CDK 1 Month", name_en="ChatGPT Plus CDK 1 Month", fulfillment_type=FulfillmentType.ACTIVATION_TASK
         )
-        supplier = _get_or_create_category(
-            db,
-            name_ru="Supplier Items",
-            name_en="Supplier Items",
-            parent_id=root_games.id,
-            fulfillment_type=FulfillmentType.MANUAL_SUPPLIER,
+        supplier_offer = _get_or_create_offer(
+            db, category_id=supplier_cat.id, name_ru="Spotify Individual 1 Month", name_en="Spotify Individual 1 Month", fulfillment_type=FulfillmentType.MANUAL_SUPPLIER
         )
 
-        products = [
-            (steam.id, "DEMO-STEAM-KEY-001"),
-            (steam.id, "DEMO-STEAM-KEY-002"),
-        ]
-        for category_id, payload in products:
+        for offer_id, payload in [(steam_offer.id, "DEMO-STEAM-KEY-001"), (steam_offer.id, "DEMO-STEAM-KEY-002")]:
             exists = db.scalar(select(ProductPool).where(ProductPool.payload == payload))
-            if exists:
-                continue
-            db.add(ProductPool(category_id=category_id, payload=payload, status=ProductStatus.AVAILABLE))
+            if not exists:
+                db.add(ProductPool(offer_id=offer_id, payload=payload, status=ProductStatus.AVAILABLE))
 
         demo_user = db.scalar(select(User).where(User.telegram_id == 999000111))
         if demo_user is None:
-            demo_user = User(
-                telegram_id=999000111,
-                username="demo_user",
-                language=Language.EN,
-                currency=Currency.USD,
-                balance=Decimal("50.00"),
-            )
+            demo_user = User(telegram_id=999000111, username="demo_user", language=Language.EN, currency=Currency.USD, balance=Decimal("50.00"))
             db.add(demo_user)
             db.flush()
 
-        for category, price in ((steam, Decimal("10.00")), (xbox, Decimal("15.00")), (supplier, Decimal("12.00"))):
-            has_price = db.scalar(
-                select(UserCategoryPrice).where(
-                    UserCategoryPrice.user_id == demo_user.id,
-                    UserCategoryPrice.category_id == category.id,
-                )
-            )
+        for offer, price in ((steam_offer, Decimal("10.00")), (activation_offer, Decimal("15.00")), (supplier_offer, Decimal("12.00"))):
+            has_price = db.scalar(select(UserOfferPrice).where(UserOfferPrice.user_id == demo_user.id, UserOfferPrice.offer_id == offer.id))
             if not has_price:
-                db.add(UserCategoryPrice(user_id=demo_user.id, category_id=category.id, price=price))
+                db.add(UserOfferPrice(user_id=demo_user.id, offer_id=offer.id, price=price))
 
         db.commit()
 

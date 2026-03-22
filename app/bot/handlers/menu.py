@@ -27,7 +27,7 @@ from app.bot.keyboards.top_up import top_up_main_keyboard
 from app.db.session import SessionLocal
 from app.core.config import get_settings
 from app.models.offer import Offer
-from app.models.enums import Language, OrderStatus, PaymentMethod
+from app.models.enums import FulfillmentType, Language, OrderStatus, PaymentMethod
 from app.models.order import Order
 from app.models.user import User
 from app.bot.handlers.top_up import TopUpStates
@@ -51,6 +51,12 @@ def _order_status_label(status: OrderStatus, language: Language) -> str:
 def _payment_method_for_new_invoice() -> PaymentMethod:
     settings = get_settings()
     return PaymentMethod.CRYPTO_PAY if settings.cryptopay_api_token else PaymentMethod.TEST_STUB
+
+
+def _activation_link_for_order(order: Order) -> str | None:
+    if order.fulfillment_type != FulfillmentType.ACTIVATION_TASK:
+        return None
+    return get_settings().activation_public_url
 
 
 def _payment_method_label(method: PaymentMethod, language: Language) -> str:
@@ -298,6 +304,7 @@ async def on_order_open(callback: CallbackQuery) -> None:
             order_id=order.id,
             can_pay=order.status == OrderStatus.PENDING,
             show_top_up=order.status == OrderStatus.PENDING,
+            activation_url=_activation_link_for_order(order),
         ),
     )
     await callback.answer()
@@ -404,7 +411,13 @@ async def on_order_check_payment(callback: CallbackQuery) -> None:
         t("orders_payment_success", user.language)
         + "\n\n"
         + _render_order_details_text(language=user.language, order=order, currency=user.currency.value, item_title=item_title),
-        reply_markup=order_details_keyboard(language=user.language, order_id=order.id, can_pay=False, show_top_up=False),
+        reply_markup=order_details_keyboard(
+            language=user.language,
+            order_id=order.id,
+            can_pay=False,
+            show_top_up=False,
+            activation_url=_activation_link_for_order(order),
+        ),
     )
     if order.delivered_payload:
         await message.answer(t("orders_delivery_message", user.language).format(payload=order.delivered_payload))

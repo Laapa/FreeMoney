@@ -12,7 +12,6 @@ from app.models.enums import OrderStatus, PaymentMethod, PaymentStatus
 from app.models.order import Order
 from app.models.payment import Payment
 from app.services.crypto_pay import CryptoPayClient, CryptoPayClientError
-from app.services.fulfillment import dispatch_activation_task_for_order
 from app.services.purchase import apply_payment_status
 from app.activation.client import ActivationAPIClient
 
@@ -117,9 +116,6 @@ def check_order_payment(
     if payment.method == PaymentMethod.TEST_STUB and test_confirm:
         apply_payment_status(db, payment, PaymentStatus.SUCCESS, now=current_time)
         db.refresh(payment)
-        db.refresh(order)
-        dispatch_activation_task_for_order(db, order=order, client=activation_client)
-        db.refresh(payment)
         return PaymentCheckResult(ok=True, reason="test_confirmed", payment=payment)
     if payment.method == PaymentMethod.CRYPTO_PAY:
         settings = get_settings()
@@ -148,9 +144,6 @@ def check_order_payment(
         if invoice.status == "paid":
             apply_payment_status(db, payment, PaymentStatus.SUCCESS, now=current_time, auto_commit=False)
             db.commit()
-            db.refresh(payment)
-            db.refresh(order)
-            dispatch_activation_task_for_order(db, order=order, client=activation_client)
             db.refresh(payment)
             return PaymentCheckResult(ok=True, reason="cryptopay_paid", payment=payment)
         if invoice.status == "active":

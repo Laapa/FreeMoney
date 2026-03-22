@@ -30,7 +30,11 @@ class FakeCryptoPayClient:
 
 
 class FakeActivationClient:
+    def __init__(self) -> None:
+        self.create_task_calls = 0
+
     def create_task(self, *, code_hash: str, user_token: dict):
+        self.create_task_calls += 1
         return type("Resp", (), {"payload": {"data": {"task_id": "task-777"}}, "message": "ok"})
 
 
@@ -88,7 +92,7 @@ def test_admin_can_change_manual_supplier_order_status() -> None:
     assert updated.status == OrderStatus.DELIVERED
 
 
-def test_activation_order_after_paid_dispatches_supplier_task(monkeypatch) -> None:
+def test_activation_order_after_paid_keeps_processing_without_supplier_dispatch(monkeypatch) -> None:
     monkeypatch.setenv("CRYPTOPAY_API_TOKEN", "token")
     get_settings.cache_clear()
 
@@ -125,6 +129,7 @@ def test_activation_order_after_paid_dispatches_supplier_task(monkeypatch) -> No
         ),
     )
 
+    fake_activation = FakeActivationClient()
     result = check_order_payment(
         db,
         order=created.order,
@@ -140,10 +145,13 @@ def test_activation_order_after_paid_dispatches_supplier_task(monkeypatch) -> No
                 )
             ]
         ),
-        activation_client=FakeActivationClient(),
+        activation_client=fake_activation,
     )
     db.refresh(created.order)
 
     assert result.ok is True
     assert created.order.status == OrderStatus.PROCESSING
-    assert created.order.external_task_id == "task-777"
+    assert created.order.external_task_id is None
+    assert created.order.fulfillment_status.value == "processing"
+    assert "Оплата получена" in (created.order.supplier_note or "")
+    assert fake_activation.create_task_calls == 0

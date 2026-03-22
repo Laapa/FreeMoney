@@ -206,7 +206,9 @@ def apply_payment_status(
         elif order.fulfillment_type == FulfillmentType.ACTIVATION_TASK:
             order.status = OrderStatus.PROCESSING
             order.fulfillment_status = FulfillmentStatus.PROCESSING
-            order.supplier_note = "Payment received. Activation task dispatch pending."
+            order.supplier_note = (
+                "Оплата получена. Для завершения активации откройте сайт-активатор и вставьте CDK + token JSON."
+            )
         else:
             order.status = OrderStatus.PROCESSING
             order.fulfillment_status = FulfillmentStatus.PROCESSING

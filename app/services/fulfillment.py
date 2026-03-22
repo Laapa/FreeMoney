@@ -33,21 +33,20 @@ def dispatch_activation_task_for_order(
     db: Session,
     *,
     order: Order,
+    code_hash: str | None = None,
+    user_token: dict | None = None,
     client: ActivationAPIClient | None = None,
 ) -> ActivationDispatchResult:
     if order.fulfillment_type != FulfillmentType.ACTIVATION_TASK:
         return ActivationDispatchResult(ok=False, reason="not_activation_order")
     if order.external_task_id:
         return ActivationDispatchResult(ok=True, reason="already_dispatched")
+    if not code_hash or not user_token:
+        return ActivationDispatchResult(ok=False, reason="activation_context_missing")
 
     activation_client = client or _activation_client()
-    payload = {
-        "order_id": order.id,
-        "user_id": order.user_id,
-        "offer_id": order.offer_id,
-    }
     try:
-        response = activation_client.create_task(code_hash=f"order-{order.id}", user_token=payload)
+        response = activation_client.create_task(code_hash=code_hash, user_token=user_token)
     except ActivationClientError as exc:
         logger.warning("Activation task create failed | order_id=%s error=%s", order.id, str(exc))
         order.supplier_note = "Activation supplier unavailable; order kept in processing."

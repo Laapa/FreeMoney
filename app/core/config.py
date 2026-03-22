@@ -45,6 +45,7 @@ class Settings(BaseSettings):
 
     activation_api_base_url: str = Field(default="http://127.0.0.1:9000", alias="ACTIVATION_API_BASE_URL")
     activation_api_timeout_seconds: float = Field(default=10.0, alias="ACTIVATION_API_TIMEOUT_SECONDS")
+    activation_public_url: str | None = Field(default=None, alias="ACTIVATION_PUBLIC_URL")
     admin_telegram_ids_raw: str = Field(default="", alias="ADMIN_TELEGRAM_IDS")
 
     @property

@@ -319,12 +319,19 @@ async def on_order_pay(callback: CallbackQuery) -> None:
 
     user = _resolve_or_create_user(callback.from_user)
     order_id = int(callback.data.split(":")[-1])
+
     with SessionLocal() as db:
         order = get_user_order(db, user_id=user.id, order_id=order_id)
         if order is None:
             await callback.answer(t("orders_not_found", user.language), show_alert=True)
             return
-        payment_result = create_order_payment(db, order=order, method=_payment_method_for_new_invoice())
+
+        payment_result = create_order_payment(
+            db,
+            order=order,
+            method=_payment_method_for_new_invoice(),
+        )
+
         order = get_user_order(db, user_id=user.id, order_id=order_id)
         item_title = None
         if order:
@@ -332,18 +339,29 @@ async def on_order_pay(callback: CallbackQuery) -> None:
             if offer is not None:
                 item_title = offer.name_ru if user.language == Language.RU else offer.name_en
 
+        payment = payment_result.payment
+
     if not payment_result.ok:
         await message.edit_text(
-            t("orders_payment_not_available", user.language),
+            f"{t('orders_payment_not_available', user.language)}\nreason={payment_result.reason}",
             reply_markup=order_details_keyboard(
                 language=user.language,
-                order_id=order.id,
+                order_id=order_id,
                 can_pay=False,
                 show_top_up=False,
             ),
         )
         await callback.answer()
         return
+
+    payment_url = None
+    payment_method_label = "-"
+    payment_deadline = "-"
+
+    if payment is not None:
+        payment_url = payment.provider_payment_url or payment.provider_invoice_url
+        payment_method_label = _payment_method_label(payment.method, user.language)
+        payment_deadline = _format_dt(payment.expires_at) if payment.expires_at else "-"
 
     await message.edit_text(
         t("orders_payment_screen", user.language).format(
@@ -352,16 +370,16 @@ async def on_order_pay(callback: CallbackQuery) -> None:
             or (f"#{order.product_id}" if order.product_id else t(f"orders_fulfillment_{order.fulfillment_type.value}", user.language)),
             amount=order.price,
             currency=user.currency.value,
-            method=_payment_method_label(order.payment.method, user.language) if order and order.payment else "-",
+            method=payment_method_label,
             created_at=_format_dt(order.created_at),
-            deadline=_format_dt(order.payment.expires_at) if order.payment and order.payment.expires_at else "-",
+            deadline=payment_deadline,
         ),
         reply_markup=order_details_keyboard(
             language=user.language,
             order_id=order.id,
-            can_pay=order.payment is not None and order.payment.method == PaymentMethod.TEST_STUB,
+            can_pay=False,
             show_top_up=True,
-            payment_url=order.payment.provider_payment_url if order and order.payment else None,
+            payment_url=payment_url,
             payment_screen=True,
         ),
     )

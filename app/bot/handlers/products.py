@@ -138,30 +138,53 @@ async def on_offer(callback: CallbackQuery) -> None:
 async def on_buy(callback: CallbackQuery) -> None:
     if callback.message is None:
         return
+
     offer_id = int(callback.data.split(":")[-1])
+
     with SessionLocal() as db:
         user = get_user_by_telegram_id(db, callback.from_user.id) or init_or_update_user(
-            db, telegram_id=callback.from_user.id, username=callback.from_user.username, language_code=callback.from_user.language_code
+            db,
+            telegram_id=callback.from_user.id,
+            username=callback.from_user.username,
+            language_code=callback.from_user.language_code,
         )
         offer = get_offer_view(db, user_id=user.id, language=user.language, offer_id=offer_id)
         if offer is None or offer.price is None:
             await callback.answer(t("products_product_not_available", user.language), show_alert=True)
             return
+
         if offer.fulfillment_type == FulfillmentType.DIRECT_STOCK:
             attempt = reserve_product_for_user(db, user_id=user.id, offer_id=offer.id, price=offer.price)
+            if not attempt.ok or attempt.order is None:
+                await callback.answer(t("products_no_stock", user.language), show_alert=True)
+                return
+
+            reservation_id = attempt.reservation.id if attempt.reservation else "-"
+            order_id = attempt.order.id
+            order_price = attempt.order.price
+
         else:
             attempt = create_non_stock_order_for_user(
-                db, user_id=user.id, offer_id=offer.id, price=offer.price, fulfillment_type=offer.fulfillment_type
+                db,
+                user_id=user.id,
+                offer_id=offer.id,
+                price=offer.price,
+                fulfillment_type=offer.fulfillment_type,
             )
-    if not attempt.ok:
-        await callback.answer(t("products_no_stock", user.language), show_alert=True)
-        return
+            if not attempt.ok or attempt.order is None:
+                await callback.answer(t("products_no_stock", user.language), show_alert=True)
+                return
+
+            reservation_id = "-"
+            order_id = attempt.order.id
+            order_price = attempt.order.price
+
     await callback.message.edit_text(
         t("products_reservation_success", user.language).format(
             title=offer.title,
-            reservation_id=attempt.reservation.id if attempt.reservation else "-",
-            order_id=attempt.order.id,
-            price=attempt.order.price,
+            reservation_id=reservation_id,
+            order_id=order_id,
+            price=order_price,
         ),
         reply_markup=reservation_success_keyboard(category_id=offer.category_id, language=user.language),
     )

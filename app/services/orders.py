@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import OrderStatus, PaymentMethod, PaymentStatus, ReservationStatus
 from app.models.order import Order
@@ -31,6 +32,7 @@ class OrderPaymentResult:
 def list_user_orders(db: Session, *, user_id: int, limit: int = 5, offset: int = 0) -> list[Order]:
     return db.scalars(
         select(Order)
+        .options(selectinload(Order.payment))
         .where(Order.user_id == user_id)
         .order_by(Order.created_at.desc())
         .limit(limit)

@@ -3,7 +3,9 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 
 from aiogram import F, Router
+from aiogram.filters import Command, StateFilter
 from aiogram.filters import Command
+from sqlalchemy.orm import joinedload
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
@@ -39,7 +41,7 @@ async def admin_command(message: Message) -> None:
     await message.answer("Админка WEBSTER-SHOP", reply_markup=admin_menu_keyboard())
 
 
-@router.callback_query(F.data == "adm:products")
+@router.callback_query(StateFilter("*"), F.data == "adm:products")
 async def admin_products(callback: CallbackQuery, state: FSMContext) -> None:
     if not _is_admin(callback.from_user.id):
         await callback.answer("forbidden", show_alert=True)
@@ -78,7 +80,7 @@ async def admin_categories_input(message: Message) -> None:
     await message.answer("Формат: CAT|... или TOGGLE_CAT|...")
 
 
-@router.callback_query(F.data == "adm:prices")
+@router.callback_query(StateFilter("*"), F.data == "adm:prices")
 async def admin_prices(callback: CallbackQuery, state: FSMContext) -> None:
     if not _is_admin(callback.from_user.id):
         await callback.answer("forbidden", show_alert=True)
@@ -133,7 +135,7 @@ async def admin_offer_input(message: Message, state: FSMContext) -> None:
     await message.answer("Формат: OFFER|... или PRICE|...")
 
 
-@router.callback_query(F.data == "adm:stock")
+@router.callback_query(StateFilter("*"), F.data == "adm:stock")
 async def admin_stock(callback: CallbackQuery, state: FSMContext) -> None:
     if not _is_admin(callback.from_user.id):
         await callback.answer("forbidden", show_alert=True)
@@ -161,30 +163,41 @@ async def admin_payload_add_input(message: Message) -> None:
     await message.answer("Payload добавлен" if product else "Товар не найден или не direct_stock")
 
 
-@router.callback_query(F.data == "adm:orders")
+@router.callback_query(StateFilter("*"), F.data == "adm:orders")
 async def admin_orders(callback: CallbackQuery, state: FSMContext) -> None:
     if not _is_admin(callback.from_user.id):
-        await callback.answer("forbidden", show_alert=True)
         return
+
     await state.clear()
+
     with SessionLocal() as db:
         orders = admin_service.list_recent_orders(db)
-        offer_ids = {o.offer_id for o in orders}
-        offers = db.query(Offer).filter(Offer.id.in_(offer_ids)).all() if offer_ids else []
-        offer_map = {o.id: o for o in offers}
-    lines = ["Последние заказы:"]
-    for order in orders:
-        offer = offer_map.get(order.offer_id)
-        offer_name = offer.name_ru if offer else f"offer#{order.offer_id}"
-        category_name = offer.category.name_ru if offer and offer.category else "-"
-        lines.append(
-            f"#{order.id} user={order.user_id} cat={category_name} offer={offer_name} amount={order.price} status={order.status.value}"
-        )
-    lines += ["", "Manual status: MANUAL|order_id|delivered/canceled", "Activation refresh: ACT|order_id"]
-    await callback.message.answer("\n".join(lines))
-    await state.set_state(AdminStates.wait_manual_order_status)
-    await callback.answer()
+        order_rows = []
 
+        offer_ids = {o.offer_id for o in orders}
+        offers = (
+            db.query(Offer)
+            .options(joinedload(Offer.category))
+            .filter(Offer.id.in_(offer_ids))
+            .all()
+            if offer_ids
+            else []
+        )
+        offer_map = {o.id: o for o in offers}
+
+        for order in orders:
+            offer = offer_map.get(order.offer_id)
+            offer_name = offer.name_ru if offer else f"offer#{order.offer_id}"
+            category_name = offer.category.name_ru if offer and offer.category else "-"
+            order_rows.append(
+    f"order #{order.id} | {category_name} | {offer_name} | {order.price} | {order.status.value}"
+)
+
+    lines = ["Последние заказы:", *order_rows]
+    lines += ["", "Manual status: MANUAL|order_id|delivered/canceled", "Activation refresh: ACT|order_id"]
+
+    await callback.message.answer("\n".join(lines))
+    await callback.answer()
 
 @router.message(AdminStates.wait_manual_order_status)
 async def admin_order_update_input(message: Message) -> None:
@@ -209,5 +222,38 @@ async def admin_order_update_input(message: Message) -> None:
             result = refresh_activation_task_status(db, order=order)
         await message.answer(f"Проверка activation: {result.reason}")
         return
+
+@router.message(StateFilter("*"), F.text.startswith("MANUAL|"))
+async def admin_order_update_global(message: Message) -> None:
+    if message.from_user is None or not _is_admin(message.from_user.id) or not message.text:
+        return
+
+    _, order_id_raw, status_raw = message.text.split("|", maxsplit=2)
+    new_status = OrderStatus.DELIVERED if status_raw == "delivered" else OrderStatus.CANCELED
+
+    with SessionLocal() as db:
+        order = admin_service.update_order_status_for_manual_supplier(
+            db,
+            order_id=int(order_id_raw),
+            new_status=new_status,
+        )
+
+    await message.answer("Статус обновлен" if order else "Нельзя изменить этот заказ")
+
+@router.message(StateFilter("*"), F.text.startswith("ACT|"))
+async def admin_activation_refresh_global(message: Message) -> None:
+    if message.from_user is None or not _is_admin(message.from_user.id) or not message.text:
+        return
+
+    _, order_id_raw = message.text.split("|", maxsplit=1)
+
+    with SessionLocal() as db:
+        order = db.get(Order, int(order_id_raw))
+        if order is None:
+            await message.answer("Заказ не найден")
+            return
+        result = refresh_activation_task_status(db, order=order)
+
+    await message.answer(f"Проверка activation: {result.reason}")
 
     await message.answer("Формат: MANUAL|order_id|delivered/canceled или ACT|order_id")

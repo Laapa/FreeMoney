@@ -10,6 +10,7 @@ from app.models.enums import FulfillmentStatus, FulfillmentType, OrderStatus, Pr
 from app.models.offer import Offer
 from app.models.order import Order
 from app.models.product_pool import ProductPool
+from app.models.top_up_request import TopUpRequest
 
 
 def is_admin_telegram_id(telegram_id: int, admin_ids: set[int]) -> bool:
@@ -116,3 +117,7 @@ def update_order_status_for_manual_supplier(db: Session, *, order_id: int, new_s
     db.commit()
     db.refresh(order)
     return order
+
+
+def list_recent_top_up_requests(db: Session, *, limit: int = 20) -> list[TopUpRequest]:
+    return db.scalars(select(TopUpRequest).order_by(TopUpRequest.created_at.desc()).limit(limit)).all()

@@ -12,6 +12,7 @@ CALLBACK_ORDERS_MENU = "acc:orders:menu"
 CALLBACK_ORDERS_PAGE = "acc:orders:page"
 CALLBACK_ORDERS_OPEN = "acc:orders:open"
 CALLBACK_ORDERS_PAY = "acc:orders:pay"
+CALLBACK_ORDERS_PAY_BALANCE = "acc:orders:pay_balance"
 CALLBACK_ORDERS_CHECK_PAYMENT = "acc:orders:check"
 CALLBACK_ORDERS_CANCEL_PAYMENT = "acc:orders:cancel"
 CALLBACK_ORDERS_TOP_UP = "acc:orders:topup"
@@ -27,6 +28,10 @@ def order_open_callback(order_id: int) -> str:
 
 def order_pay_callback(order_id: int) -> str:
     return f"{CALLBACK_ORDERS_PAY}:{order_id}"
+
+
+def order_pay_balance_callback(order_id: int) -> str:
+    return f"{CALLBACK_ORDERS_PAY_BALANCE}:{order_id}"
 
 
 def order_check_payment_callback(order_id: int) -> str:
@@ -71,6 +76,7 @@ def order_details_keyboard(
     language: Language,
     order_id: int,
     can_pay: bool,
+    can_pay_balance: bool = False,
     show_top_up: bool,
     payment_url: str | None = None,
     activation_url: str | None = None,
@@ -79,6 +85,8 @@ def order_details_keyboard(
     rows: list[list[InlineKeyboardButton]] = []
     if can_pay and not payment_screen:
         rows.append([InlineKeyboardButton(text=t("orders_action_pay", language), callback_data=order_pay_callback(order_id))])
+    if can_pay_balance and not payment_screen:
+        rows.append([InlineKeyboardButton(text=t("orders_action_pay_balance", language), callback_data=order_pay_balance_callback(order_id))])
     if payment_url:
         rows.append([InlineKeyboardButton(text=t("orders_action_open_payment", language), url=payment_url)])
     if activation_url:

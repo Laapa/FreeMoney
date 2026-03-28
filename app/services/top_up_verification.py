@@ -120,7 +120,7 @@ def verify_crypto_txid_top_up(
         user = db.scalar(select(User).where(User.id == request.user_id).with_for_update())
         if user is None:
             return TopUpVerificationResult(ok=False, request=request, error=TopUpVerificationError.REQUEST_NOT_FOUND)
-        user.balance = _money(user.balance) + _money(request.amount)
+        user.balance = _money(user.balance) + _money(request.net_amount)
         request.credited_at = now
         if on_chain_result and on_chain_result.data:
             request.verified_tx_hash = on_chain_result.data.tx_hash
@@ -141,6 +141,9 @@ def verify_crypto_txid_top_up(
                 "top_up_request_id": request.id,
                 "status": request.status.value,
                 "amount": str(request.amount),
+                "net_amount": str(request.net_amount),
+                "fee_amount": str(request.fee_amount),
+                "gross_amount": str(request.gross_amount),
                 "currency": request.currency.value,
                 "txid": request.txid,
                 "requested_network": request.requested_network,
@@ -211,7 +214,7 @@ def verify_bybit_uid_top_up(
         user = db.scalar(select(User).where(User.id == request.user_id).with_for_update())
         if user is None:
             return TopUpVerificationResult(ok=False, request=request, error=TopUpVerificationError.REQUEST_NOT_FOUND)
-        user.balance = _money(user.balance) + _money(request.amount)
+        user.balance = _money(user.balance) + _money(request.net_amount)
         request.credited_at = now
     elif target_status == TopUpStatus.REJECTED:
         event_type = LogEventType.TOP_UP_REJECTED
@@ -226,6 +229,9 @@ def verify_bybit_uid_top_up(
                 "top_up_request_id": request.id,
                 "status": request.status.value,
                 "amount": str(request.amount),
+                "net_amount": str(request.net_amount),
+                "fee_amount": str(request.fee_amount),
+                "gross_amount": str(request.gross_amount),
                 "currency": request.currency.value,
                 "sender_uid": request.sender_uid,
                 "external_reference": request.external_reference,

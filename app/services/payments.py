@@ -13,6 +13,7 @@ from app.models.order import Order
 from app.models.payment import Payment
 from app.services.crypto_pay import CryptoPayClient, CryptoPayClientError
 from app.services.purchase import apply_payment_status
+from app.services.fees import calculate_external_fee
 from app.activation.client import ActivationAPIClient
 
 logger = logging.getLogger(__name__)
@@ -50,12 +51,25 @@ def create_order_payment(
     current_time = now or datetime.utcnow()
     payment = order.payment
     if payment is None:
-        payment = Payment(order_id=order.id, amount=Decimal(order.price), method=method, provider=method.value)
+        fee = calculate_external_fee(Decimal(order.price))
+        payment = Payment(
+            order_id=order.id,
+            amount=fee.gross_amount,
+            net_amount=fee.net_amount,
+            fee_amount=fee.fee_amount,
+            gross_amount=fee.gross_amount,
+            method=method,
+            provider=method.value,
+        )
         db.add(payment)
     else:
+        fee = calculate_external_fee(Decimal(order.price))
         payment.method = method
         payment.provider = method.value
-        payment.amount = Decimal(order.price)
+        payment.amount = fee.gross_amount
+        payment.net_amount = fee.net_amount
+        payment.fee_amount = fee.fee_amount
+        payment.gross_amount = fee.gross_amount
 
     payment.status = PaymentStatus.PENDING
     if method == PaymentMethod.CRYPTO_PAY:
@@ -69,7 +83,7 @@ def create_order_payment(
         )
         try:
             invoice = client.create_invoice(
-                amount=Decimal(order.price),
+                amount=payment.gross_amount,
                 asset=settings.cryptopay_asset,
                 expires_in=settings.cryptopay_invoice_expires_in,
             )

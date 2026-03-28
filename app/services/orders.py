@@ -106,6 +106,9 @@ def pay_pending_order_from_balance(db: Session, *, user_id: int, order_id: int, 
         payment = Payment(
             order_id=order.id,
             amount=order.price,
+            net_amount=order.price,
+            fee_amount=Decimal("0.00"),
+            gross_amount=order.price,
             status=PaymentStatus.CREATED,
             method=PaymentMethod.TEST_STUB,
             provider=PaymentMethod.TEST_STUB.value,
@@ -114,6 +117,9 @@ def pay_pending_order_from_balance(db: Session, *, user_id: int, order_id: int, 
         db.flush()
     else:
         payment.amount = order.price
+        payment.net_amount = order.price
+        payment.fee_amount = Decimal("0.00")
+        payment.gross_amount = order.price
 
     apply_payment_status(db, payment, PaymentStatus.SUCCESS, now=now, auto_commit=False)
     db.commit()

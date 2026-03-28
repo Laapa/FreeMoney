@@ -13,11 +13,14 @@ from aiogram.types import CallbackQuery, Message
 from app.bot.keyboards.admin import admin_menu_keyboard
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.models.enums import FulfillmentType, OrderStatus
+from app.models.enums import FulfillmentType, OrderStatus, TopUpMethod, TopUpStatus
 from app.models.offer import Offer
 from app.models.order import Order
+from app.models.top_up_request import TopUpRequest
 from app.services import admin as admin_service
 from app.services.fulfillment import refresh_activation_task_status
+from app.services.top_up_verification import verify_bybit_uid_top_up, verify_crypto_txid_top_up
+from app.services.top_up_payments import check_crypto_pay_top_up
 
 router = Router(name="admin")
 
@@ -257,3 +260,46 @@ async def admin_activation_refresh_global(message: Message) -> None:
     await message.answer(f"Проверка activation: {result.reason}")
 
     await message.answer("Формат: MANUAL|order_id|delivered/canceled или ACT|order_id")
+
+
+@router.message(StateFilter("*"), F.text == "TOPUPS")
+async def admin_topups_list(message: Message) -> None:
+    if message.from_user is None or not _is_admin(message.from_user.id):
+        return
+    with SessionLocal() as db:
+        requests = admin_service.list_recent_top_up_requests(db)
+    lines = ["Top up requests:"]
+    for req in requests:
+        lines.append(
+            f"#{req.id} user={req.user_id} method={req.method.value} status={req.status.value} net={req.net_amount} fee={req.fee_amount} gross={req.gross_amount}"
+        )
+    lines.append("")
+    lines.append("Verify: TOPUP_VERIFY|request_id|verified/rejected/expired|note(optional)")
+    await message.answer("\n".join(lines))
+
+
+@router.message(StateFilter("*"), F.text.startswith("TOPUP_VERIFY|"))
+async def admin_topup_verify(message: Message) -> None:
+    if message.from_user is None or not _is_admin(message.from_user.id) or not message.text:
+        return
+    _, request_id_raw, status_raw, *rest = message.text.split("|", maxsplit=3)
+    note = rest[0] if rest else None
+    target_status = TopUpStatus(status_raw)
+
+    with SessionLocal() as db:
+        req = db.get(TopUpRequest, int(request_id_raw))
+        if req is None:
+            await message.answer("Top-up request not found")
+            return
+        if req.method == TopUpMethod.BYBIT_UID:
+            result = verify_bybit_uid_top_up(db, request_id=req.id, target_status=target_status, verification_note=note)
+            await message.answer("OK" if result.ok else f"ERROR: {result.error}")
+            return
+        if req.method == TopUpMethod.CRYPTO_TXID:
+            result = verify_crypto_txid_top_up(db, request_id=req.id, target_status=target_status, verification_note=note)
+            await message.answer("OK" if result.ok else f"ERROR: {result.error}")
+            return
+        if req.method == TopUpMethod.CRYPTO_PAY:
+            result = check_crypto_pay_top_up(db, request_id=req.id)
+            await message.answer(f"Crypto Pay check: {result.reason}")
+            return

@@ -61,6 +61,7 @@ class PaymentMethod(str, Enum):
 
 
 class TopUpMethod(str, Enum):
+    CRYPTO_PAY = "crypto_pay"
     CRYPTO_TXID = "crypto_txid"
     BYBIT_UID = "bybit_uid"
 

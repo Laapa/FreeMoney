@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     cryptopay_asset: str = Field(default="USDT", alias="CRYPTOPAY_ASSET")
     cryptopay_invoice_expires_in: int = Field(default=1800, alias="CRYPTOPAY_INVOICE_EXPIRES_IN")
 
+    transaction_fee_percent: Decimal = Field(default=Decimal("3.00"), alias="TRANSACTION_FEE_PERCENT")
+
+    bybit_enabled: bool = Field(default=False, alias="BYBIT_ENABLED")
+    bybit_payments_enabled: bool = Field(default=False, alias="BYBIT_PAYMENTS_ENABLED")
+    bybit_recipient_uid: str | None = Field(default=None, alias="BYBIT_RECIPIENT_UID")
+    bybit_recipient_note: str | None = Field(default=None, alias="BYBIT_RECIPIENT_NOTE")
+
     blockchain_explorer_base_urls: dict[str, str] = Field(
         default={"bsc": "https://api.bscscan.com/api"},
         alias="BLOCKCHAIN_EXPLORER_BASE_URLS",

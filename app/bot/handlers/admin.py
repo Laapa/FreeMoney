@@ -269,7 +269,7 @@ async def admin_topups_list(message: Message) -> None:
     lines = ["Top up requests:"]
     for req in requests:
         lines.append(
-            f"#{req.id} user={req.user_id} method={req.method.value} status={req.status.value} net={req.net_amount} fee={req.fee_amount} gross={req.gross_amount}"
+            f"#{req.id} user={req.user_id} method={req.method.value} status={req.status.value} source={req.verification_source} net={req.net_amount} fee={req.fee_amount} gross={req.gross_amount}"
         )
     lines.append("")
     lines.append("Verify: TOPUP_VERIFY|request_id|verified/rejected/expired|note(optional)")

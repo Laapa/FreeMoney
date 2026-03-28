@@ -208,6 +208,7 @@ def verify_bybit_uid_top_up(
     request.status = target_status
     request.reviewed_at = now
     request.verification_note = verification_note
+    request.verification_source = request.verification_source or "manual"
 
     event_type = LogEventType.TOP_UP_VERIFIED
     if target_status == TopUpStatus.VERIFIED:

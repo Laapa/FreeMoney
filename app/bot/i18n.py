@@ -366,6 +366,14 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Нельзя обновить Bybit UID/референс: заявка уже не в ожидаемом статусе.",
         Language.EN: "Cannot update Bybit UID/reference: request is no longer in expected status.",
     },
+    "top_up_bybit_auto_verified": {
+        Language.RU: "Bybit auto-verify: заявка #{id} подтверждена автоматически, зачислено {amount} {currency}.",
+        Language.EN: "Bybit auto-verify: request #{id} was verified automatically, credited {amount} {currency}.",
+    },
+    "top_up_bybit_auto_pending": {
+        Language.RU: "Bybit auto-verify включен, но платеж пока не найден. Заявка остается на проверке.",
+        Language.EN: "Bybit auto-verify is enabled, but payment is not found yet. Request stays under verification.",
+    },
     "top_up_bybit_reference_submitted": {
         Language.RU: "UID/референс сохранен: {reference}. Заявка будет проверена оператором вручную.",
         Language.EN: "UID/reference saved: {reference}. The request will be reviewed manually by an operator.",

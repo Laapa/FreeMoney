@@ -60,6 +60,7 @@ def create_crypto_pay_top_up_invoice(
 
     request.provider_payment_id = invoice.invoice_id
     request.provider_status = invoice.status
+    request.last_auto_verify_attempt_at = datetime.utcnow()
     request.provider_payment_url = invoice.pay_url
     request.provider_invoice_url = invoice.bot_invoice_url
     request.external_reference = request.external_reference or invoice.invoice_id
@@ -104,19 +105,23 @@ def check_crypto_pay_top_up(
 
     invoice = invoices[0]
     request.provider_status = invoice.status
+    request.last_auto_verify_attempt_at = datetime.utcnow()
     request.provider_payment_url = request.provider_payment_url or invoice.pay_url
     request.provider_invoice_url = request.provider_invoice_url or invoice.bot_invoice_url
 
     if invoice.status == "paid":
+        request.last_auto_verify_note = "matched"
         _credit_top_up_request(db, request=request, note="Auto-verified by Crypto Pay invoice status=paid")
         return TopUpPaymentResult(ok=True, reason="credited", request=request)
 
     if invoice.status in {"expired", "invalid"}:
+        request.last_auto_verify_note = f"invoice_{invoice.status}"
         request.status = TopUpStatus.EXPIRED
         db.commit()
         db.refresh(request)
         return TopUpPaymentResult(ok=False, reason=f"invoice_{invoice.status}", request=request)
 
+    request.last_auto_verify_note = "payment_pending"
     db.commit()
     db.refresh(request)
     return TopUpPaymentResult(ok=False, reason="payment_pending", request=request)
@@ -134,6 +139,7 @@ def _credit_top_up_request(db: Session, *, request: TopUpRequest, note: str) -> 
     request.status = TopUpStatus.VERIFIED
     request.reviewed_at = now
     request.verification_note = note
+    request.verification_source = "auto_cryptopay"
     request.credited_at = now
     user.balance = quantize_money(user.balance + request.net_amount)
 

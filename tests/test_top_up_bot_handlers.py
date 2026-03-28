@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from app.bot.handlers.top_up import _format_bybit_transfer_instructions, _format_top_up_request_details, _is_bybit_available, _parse_bybit_sender_reference
+from app.bot.handlers.top_up import _format_bybit_transfer_instructions, _format_top_up_request_details, _is_bybit_auto_verify_ready, _is_bybit_available, _parse_bybit_sender_reference
 from app.models.enums import Currency, Language, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
 
@@ -89,3 +89,20 @@ def test_crypto_method_label_is_cryptopay_invoice_text() -> None:
 
     assert "TXID" not in t("top_up_method_crypto", Language.EN)
     assert "Crypto Pay" in t("top_up_method_crypto", Language.EN)
+
+
+def test_bybit_auto_verify_ready_requires_credentials(monkeypatch) -> None:
+    monkeypatch.setenv("BYBIT_AUTO_VERIFY_ENABLED", "true")
+    monkeypatch.setenv("BYBIT_RECIPIENT_UID", "99887766")
+    monkeypatch.delenv("BYBIT_API_KEY", raising=False)
+    monkeypatch.delenv("BYBIT_API_SECRET", raising=False)
+
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    assert _is_bybit_auto_verify_ready() is False
+
+    monkeypatch.setenv("BYBIT_API_KEY", "k")
+    monkeypatch.setenv("BYBIT_API_SECRET", "s")
+    get_settings.cache_clear()
+    assert _is_bybit_auto_verify_ready() is True

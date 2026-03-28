@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     bybit_payments_enabled: bool = Field(default=False, alias="BYBIT_PAYMENTS_ENABLED")
     bybit_recipient_uid: str | None = Field(default=None, alias="BYBIT_RECIPIENT_UID")
     bybit_recipient_note: str | None = Field(default=None, alias="BYBIT_RECIPIENT_NOTE")
+    bybit_auto_verify_enabled: bool = Field(default=False, alias="BYBIT_AUTO_VERIFY_ENABLED")
+    bybit_api_key: str | None = Field(default=None, alias="BYBIT_API_KEY")
+    bybit_api_secret: str | None = Field(default=None, alias="BYBIT_API_SECRET")
+    bybit_api_base_url: str = Field(default="https://api.bybit.com", alias="BYBIT_API_BASE_URL")
+    bybit_recv_window: int = Field(default=5000, alias="BYBIT_RECV_WINDOW")
+    bybit_deposit_coin: str = Field(default="USDT", alias="BYBIT_DEPOSIT_COIN")
+    bybit_internal_transfer_lookback_minutes: int = Field(default=180, alias="BYBIT_INTERNAL_TRANSFER_LOOKBACK_MINUTES")
+    bybit_internal_transfer_poll_seconds: int = Field(default=0, alias="BYBIT_INTERNAL_TRANSFER_POLL_SECONDS")
+    bybit_require_sender_uid: bool = Field(default=True, alias="BYBIT_REQUIRE_SENDER_UID")
+    bybit_internal_deposit_endpoint: str = Field(default="/v5/asset/deposit/query-internal-record", alias="BYBIT_INTERNAL_DEPOSIT_ENDPOINT")
 
     blockchain_explorer_base_urls: dict[str, str] = Field(
         default={"bsc": "https://api.bscscan.com/api"},

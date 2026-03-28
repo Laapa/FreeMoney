@@ -22,6 +22,7 @@ from app.models.top_up_request import TopUpRequest
 from app.models.user import User
 from app.services.admin import is_admin_telegram_id
 from app.services.top_up_payments import check_crypto_pay_top_up, create_crypto_pay_top_up_invoice
+from app.services.bybit_top_up_verification import try_auto_verify_bybit_top_up
 from app.services.top_up_requests import create_top_up_request, get_top_up_request, list_user_top_up_requests, set_bybit_sender_reference
 from app.services.top_up_statuses import TopUpRequestTransitionError
 from app.services.users import get_user_by_telegram_id, init_or_update_user
@@ -116,6 +117,9 @@ async def top_up_request_details(message: Message, state: FSMContext) -> None:
         request = get_top_up_request(db, request_id=request_id, user_id=user.id)
         if request is not None and request.method == TopUpMethod.CRYPTO_PAY and request.status == TopUpStatus.PENDING:
             check_crypto_pay_top_up(db, request_id=request.id)
+            request = get_top_up_request(db, request_id=request_id, user_id=user.id)
+        if request is not None and request.method == TopUpMethod.BYBIT_UID and request.status == TopUpStatus.WAITING_VERIFICATION and _is_bybit_auto_verify_ready():
+            try_auto_verify_bybit_top_up(db, request_id=request.id)
             request = get_top_up_request(db, request_id=request_id, user_id=user.id)
 
     if request is None:
@@ -266,10 +270,26 @@ async def top_up_bybit_sender_reference(message: Message, state: FSMContext) -> 
             return
 
     submitted_reference = sender_uid or external_reference or t("top_up_not_provided", user.language)
+    auto_message = ""
+    with SessionLocal() as db:
+        latest = get_top_up_request(db, request_id=request.id, user_id=user.id)
+        if latest is not None and _is_bybit_auto_verify_ready():
+            auto_result = try_auto_verify_bybit_top_up(db, request_id=latest.id)
+            latest = get_top_up_request(db, request_id=latest.id, user_id=user.id)
+            if auto_result.ok and latest is not None and latest.status == TopUpStatus.VERIFIED:
+                auto_message = "\n\n" + t("top_up_bybit_auto_verified", user.language).format(
+                    id=latest.id,
+                    amount=latest.net_amount,
+                    currency=latest.currency.value,
+                )
+            else:
+                auto_message = "\n\n" + t("top_up_bybit_auto_pending", user.language)
+
     await message.answer(
         t("top_up_bybit_reference_submitted", user.language).format(reference=submitted_reference)
         + "\n\n"
-        + t("top_up_waiting_verification", user.language).format(id=request.id, status=_status_text(request, user.language)),
+        + t("top_up_waiting_verification", user.language).format(id=request.id, status=_status_text(request, user.language))
+        + auto_message,
         reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()),
     )
     await state.set_state(TopUpStates.choosing_method)
@@ -278,6 +298,16 @@ async def top_up_bybit_sender_reference(message: Message, state: FSMContext) -> 
 def _is_bybit_available() -> bool:
     settings = get_settings()
     return settings.bybit_enabled and bool((settings.bybit_recipient_uid or "").strip())
+
+
+def _is_bybit_auto_verify_ready() -> bool:
+    settings = get_settings()
+    return bool(
+        settings.bybit_auto_verify_enabled
+        and settings.bybit_api_key
+        and settings.bybit_api_secret
+        and (settings.bybit_recipient_uid or "").strip()
+    )
 
 
 def _format_bybit_transfer_instructions(*, request: TopUpRequest, language: Language) -> str:

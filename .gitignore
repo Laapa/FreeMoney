@@ -6,3 +6,5 @@ webster_shop.db
 
 .env
 *.db
+
+*.egg-info/

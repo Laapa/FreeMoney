@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import logging
 
@@ -47,7 +47,7 @@ def try_auto_verify_bybit_top_up(
         return BybitAutoVerifyResult(ok=False, reason=f"invalid_status:{request.status.value}", request=request)
 
     settings = get_settings()
-    current_time = now or datetime.utcnow()
+    current_time = now or _utcnow_naive()
     if not settings.bybit_auto_verify_enabled:
         _mark_attempt(db, request, "auto_verify_disabled", current_time)
         return BybitAutoVerifyResult(ok=False, reason="auto_verify_disabled", request=request)
@@ -188,3 +188,7 @@ def _find_record_match(
 
 def _normalize_status(status: str) -> str:
     return (status or "").strip().lower()
+
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)

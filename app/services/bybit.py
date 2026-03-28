@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import hmac
 import json
@@ -86,7 +86,7 @@ class BybitClient:
     def _signed_get(self, path: str, *, params: dict[str, str] | None = None) -> dict[str, Any]:
         query_params = params or {}
         query_string = parse.urlencode(sorted(query_params.items()))
-        timestamp = str(int(datetime.utcnow().timestamp() * 1000))
+        timestamp = str(int(datetime.now(timezone.utc).timestamp() * 1000))
         payload = f"{timestamp}{self._api_key}{self._recv_window}{query_string}"
         sign = hmac.new(self._api_secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
 

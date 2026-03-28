@@ -60,6 +60,12 @@ def _activation_link_for_order(order: Order) -> str | None:
     return get_settings().activation_public_url
 
 
+
+def _is_bybit_available_for_top_up() -> bool:
+    settings = get_settings()
+    return settings.bybit_enabled and bool((settings.bybit_recipient_uid or "").strip())
+
+
 def _payment_method_label(method: PaymentMethod, language: Language) -> str:
     if method == PaymentMethod.CRYPTO_PAY:
         return "Crypto Pay"
@@ -378,7 +384,9 @@ async def on_order_pay(callback: CallbackQuery) -> None:
             method=payment_method_label,
             created_at=_format_dt(order.created_at),
             deadline=payment_deadline,
-        ),
+        )
+        + "\n\n"
+        + t("orders_bybit_via_balance_hint", user.language),
         reply_markup=order_details_keyboard(
             language=user.language,
             order_id=order.id,
@@ -517,6 +525,6 @@ async def on_order_top_up(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(TopUpStates.choosing_method)
     await message.answer(
         t("top_up_main", user.language).format(balance=user.balance, currency=user.currency.value),
-        reply_markup=top_up_main_keyboard(user.language),
+        reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available_for_top_up()),
     )
     await callback.answer()

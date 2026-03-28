@@ -4,7 +4,6 @@ from decimal import Decimal, InvalidOperation
 
 from aiogram import F, Router
 from aiogram.filters import Command, StateFilter
-from aiogram.filters import Command
 from sqlalchemy.orm import joinedload
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -259,7 +258,6 @@ async def admin_activation_refresh_global(message: Message) -> None:
 
     await message.answer(f"Проверка activation: {result.reason}")
 
-    await message.answer("Формат: MANUAL|order_id|delivered/canceled или ACT|order_id")
 
 
 @router.message(StateFilter("*"), F.text == "TOPUPS")
@@ -284,7 +282,11 @@ async def admin_topup_verify(message: Message) -> None:
         return
     _, request_id_raw, status_raw, *rest = message.text.split("|", maxsplit=3)
     note = rest[0] if rest else None
-    target_status = TopUpStatus(status_raw)
+    try:
+        target_status = TopUpStatus(status_raw)
+    except ValueError:
+        await message.answer("Invalid status. Use: verified/rejected/expired")
+        return
 
     with SessionLocal() as db:
         req = db.get(TopUpRequest, int(request_id_raw))

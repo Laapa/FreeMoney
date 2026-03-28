@@ -48,7 +48,7 @@ async def _show_top_up_main(message: Message, *, user: User, state: FSMContext) 
     await state.set_state(TopUpStates.choosing_method)
     await message.answer(
         t("top_up_main", user.language).format(balance=user.balance, currency=user.currency.value),
-        reply_markup=top_up_main_keyboard(user.language),
+        reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()),
     )
 
 
@@ -90,7 +90,7 @@ async def top_up_show_requests(message: Message, state: FSMContext) -> None:
         requests = list_user_top_up_requests(db, user_id=user.id)
 
     if not requests:
-        await message.answer(t("top_up_no_requests", user.language), reply_markup=top_up_main_keyboard(user.language))
+        await message.answer(t("top_up_no_requests", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
         return
 
     lines = [t("top_up_status_list_title", user.language)]
@@ -100,7 +100,7 @@ async def top_up_show_requests(message: Message, state: FSMContext) -> None:
     lines.append(t("top_up_open_request_hint", user.language))
 
     await state.set_state(TopUpStates.choosing_method)
-    await message.answer("\n".join(lines), reply_markup=top_up_main_keyboard(user.language))
+    await message.answer("\n".join(lines), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
 
 
 @router.message(TopUpStates.choosing_method, F.text.regexp(r"^#?\d+$"))
@@ -119,11 +119,11 @@ async def top_up_request_details(message: Message, state: FSMContext) -> None:
             request = get_top_up_request(db, request_id=request_id, user_id=user.id)
 
     if request is None:
-        await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language))
+        await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
         return
 
     await state.set_state(TopUpStates.choosing_method)
-    await message.answer(_format_top_up_request_details(request, user.language), reply_markup=top_up_main_keyboard(user.language))
+    await message.answer(_format_top_up_request_details(request, user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
 
 
 @router.message(TopUpStates.choosing_method, F.text.in_({t(TOP_UP_METHOD_CRYPTO, Language.RU), t(TOP_UP_METHOD_CRYPTO, Language.EN)}))
@@ -170,7 +170,7 @@ async def top_up_crypto_amount(message: Message, state: FSMContext) -> None:
         if invoice_result.ok
         else t("top_up_crypto_invoice_failed", user.language)
     )
-    await message.answer(summary, reply_markup=top_up_main_keyboard(user.language))
+    await message.answer(summary, reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
     await state.set_state(TopUpStates.choosing_method)
 
 
@@ -179,6 +179,10 @@ async def top_up_bybit_intro(message: Message, state: FSMContext) -> None:
     if message.from_user is None:
         return
     user = _resolve_or_create_user(message.from_user)
+    if not _is_bybit_available():
+        await message.answer(t("top_up_bybit_unavailable", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=False))
+        await state.set_state(TopUpStates.choosing_method)
+        return
     await state.set_state(TopUpStates.bybit_amount)
     await message.answer(t("top_up_bybit_intro", user.language), reply_markup=top_up_cancel_keyboard(user.language))
 
@@ -216,7 +220,7 @@ async def top_up_bybit_amount(message: Message, state: FSMContext) -> None:
             note=t("top_up_not_provided", user.language),
         )
         + "\n\n"
-        + t("top_up_bybit_reference_prompt", user.language),
+        + _format_bybit_transfer_instructions(request=request, language=user.language),
         reply_markup=top_up_cancel_keyboard(user.language),
     )
 
@@ -244,7 +248,7 @@ async def top_up_bybit_sender_reference(message: Message, state: FSMContext) -> 
     with SessionLocal() as db:
         request = get_top_up_request(db, request_id=request_id, user_id=user.id)
         if request is None:
-            await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language))
+            await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
             await _show_top_up_main(message, user=user, state=state)
             return
         try:
@@ -256,7 +260,7 @@ async def top_up_bybit_sender_reference(message: Message, state: FSMContext) -> 
             )
         except TopUpRequestTransitionError:
             await message.answer(
-                t("top_up_bybit_reference_state_invalid", user.language), reply_markup=top_up_main_keyboard(user.language)
+                t("top_up_bybit_reference_state_invalid", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available())
             )
             await _show_top_up_main(message, user=user, state=state)
             return
@@ -266,9 +270,27 @@ async def top_up_bybit_sender_reference(message: Message, state: FSMContext) -> 
         t("top_up_bybit_reference_submitted", user.language).format(reference=submitted_reference)
         + "\n\n"
         + t("top_up_waiting_verification", user.language).format(id=request.id, status=_status_text(request, user.language)),
-        reply_markup=top_up_main_keyboard(user.language),
+        reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()),
     )
     await state.set_state(TopUpStates.choosing_method)
+
+
+def _is_bybit_available() -> bool:
+    settings = get_settings()
+    return settings.bybit_enabled and bool((settings.bybit_recipient_uid or "").strip())
+
+
+def _format_bybit_transfer_instructions(*, request: TopUpRequest, language: Language) -> str:
+    settings = get_settings()
+    recipient_uid = (settings.bybit_recipient_uid or "").strip() or t("top_up_not_provided", language)
+    recipient_note = (settings.bybit_recipient_note or "").strip() or t("top_up_not_provided", language)
+    return t("top_up_bybit_transfer_instruction", language).format(
+        gross_amount=request.gross_amount,
+        currency=request.currency.value,
+        recipient_uid=recipient_uid,
+        recipient_note=recipient_note,
+    ) + "\n\n" + t("top_up_bybit_reference_prompt", language)
+
 
 
 def _parse_amount(raw_amount: str) -> Decimal | None:

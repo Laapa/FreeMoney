@@ -258,7 +258,7 @@ def _verify_request_on_chain(*, request: TopUpRequest, evm_verifier: EvmTxVerifi
     return verifier.verify_transfer(
         tx_hash=request.txid or "",
         expected_network=request.requested_network or "",
-        expected_amount=_money(request.amount),
+        expected_amount=_money(request.gross_amount),
         expected_token_symbol=request.requested_token,
     )
 

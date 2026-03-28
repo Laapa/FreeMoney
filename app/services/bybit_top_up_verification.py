@@ -26,7 +26,7 @@ class BybitAutoVerifyResult:
     matched_record: BybitInternalDepositRecord | None = None
 
 
-SUCCESS_STATUSES = {"success", "completed", "ok", "3", "succeeded"}
+SUCCESS_STATUSES = {"2", "success", "completed", "ok", "succeeded"}
 
 
 def try_auto_verify_bybit_top_up(

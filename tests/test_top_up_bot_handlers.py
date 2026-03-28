@@ -1,7 +1,14 @@
 from datetime import datetime
 from decimal import Decimal
 
-from app.bot.handlers.top_up import _format_bybit_transfer_instructions, _format_top_up_request_details, _is_bybit_auto_verify_ready, _is_bybit_available, _parse_bybit_sender_reference
+from app.bot.handlers.top_up import (
+    _build_bybit_submit_result_text,
+    _format_bybit_transfer_instructions,
+    _format_top_up_request_details,
+    _is_bybit_auto_verify_ready,
+    _is_bybit_available,
+    _parse_bybit_sender_reference,
+)
 from app.models.enums import Currency, Language, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
 
@@ -106,3 +113,49 @@ def test_bybit_auto_verify_ready_requires_credentials(monkeypatch) -> None:
     monkeypatch.setenv("BYBIT_API_SECRET", "s")
     get_settings.cache_clear()
     assert _is_bybit_auto_verify_ready() is True
+
+
+def test_bybit_submit_message_success_has_no_manual_waiting_text() -> None:
+    request = TopUpRequest(
+        id=44,
+        user_id=1,
+        method=TopUpMethod.BYBIT_UID,
+        amount=Decimal("100.00"),
+        net_amount=Decimal("100.00"),
+        fee_amount=Decimal("3.00"),
+        gross_amount=Decimal("103.00"),
+        currency=Currency.USD,
+        status=TopUpStatus.VERIFIED,
+    )
+    message = _build_bybit_submit_result_text(
+        language=Language.EN,
+        request=request,
+        submitted_reference="123456",
+        auto_verified=True,
+        auto_attempted=True,
+    )
+    assert "verified automatically" in message
+    assert "sent for review" not in message
+
+
+def test_bybit_submit_message_pending_has_no_success_text() -> None:
+    request = TopUpRequest(
+        id=45,
+        user_id=1,
+        method=TopUpMethod.BYBIT_UID,
+        amount=Decimal("100.00"),
+        net_amount=Decimal("100.00"),
+        fee_amount=Decimal("3.00"),
+        gross_amount=Decimal("103.00"),
+        currency=Currency.USD,
+        status=TopUpStatus.WAITING_VERIFICATION,
+    )
+    message = _build_bybit_submit_result_text(
+        language=Language.EN,
+        request=request,
+        submitted_reference="123456",
+        auto_verified=False,
+        auto_attempted=True,
+    )
+    assert "sent for review" in message
+    assert "verified automatically" not in message

@@ -55,7 +55,7 @@ def test_auto_verify_success_credits_only_net(monkeypatch) -> None:
         tx_id="tx-1",
         amount=Decimal("103.00"),
         coin="USDT",
-        status="SUCCESS",
+        status="2",
         from_member_id="777777",
         created_time_ms=int((datetime.utcnow() + timedelta(minutes=1)).timestamp() * 1000),
         raw={},
@@ -93,6 +93,35 @@ def test_auto_verify_no_match_keeps_waiting(monkeypatch) -> None:
     result = try_auto_verify_bybit_top_up(db, request_id=req.id, bybit_client=FakeBybitClient([wrong_amount]))
     db.refresh(user)
     db.refresh(req)
+
+    assert result.ok is False
+    assert result.reason == "not_found"
+    assert user.balance == Decimal("0.00")
+
+
+def test_auto_verify_failed_status_3_is_not_accepted(monkeypatch) -> None:
+    monkeypatch.setenv("BYBIT_AUTO_VERIFY_ENABLED", "true")
+    monkeypatch.setenv("BYBIT_API_KEY", "k")
+    monkeypatch.setenv("BYBIT_API_SECRET", "s")
+    monkeypatch.setenv("BYBIT_RECIPIENT_UID", "9988")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+
+    db = make_session()
+    user, req = _seed_bybit_request(db)
+
+    failed_record = BybitInternalDepositRecord(
+        tx_id="tx-failed",
+        amount=Decimal("103.00"),
+        coin="USDT",
+        status="3",
+        from_member_id="777777",
+        created_time_ms=int(datetime.utcnow().timestamp() * 1000),
+        raw={},
+    )
+    result = try_auto_verify_bybit_top_up(db, request_id=req.id, bybit_client=FakeBybitClient([failed_record]))
+    db.refresh(user)
 
     assert result.ok is False
     assert result.reason == "not_found"

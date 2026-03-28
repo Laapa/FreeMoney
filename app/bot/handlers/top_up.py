@@ -270,28 +270,25 @@ async def top_up_bybit_sender_reference(message: Message, state: FSMContext) -> 
             return
 
     submitted_reference = sender_uid or external_reference or t("top_up_not_provided", user.language)
-    auto_message = ""
+    auto_verified = False
+    auto_attempted = False
     with SessionLocal() as db:
         latest = get_top_up_request(db, request_id=request.id, user_id=user.id)
         if latest is not None and _is_bybit_auto_verify_ready():
+            auto_attempted = True
             auto_result = try_auto_verify_bybit_top_up(db, request_id=latest.id)
             latest = get_top_up_request(db, request_id=latest.id, user_id=user.id)
             if auto_result.ok and latest is not None and latest.status == TopUpStatus.VERIFIED:
-                auto_message = "\n\n" + t("top_up_bybit_auto_verified", user.language).format(
-                    id=latest.id,
-                    amount=latest.net_amount,
-                    currency=latest.currency.value,
-                )
-            else:
-                auto_message = "\n\n" + t("top_up_bybit_auto_pending", user.language)
+                auto_verified = True
 
-    await message.answer(
-        t("top_up_bybit_reference_submitted", user.language).format(reference=submitted_reference)
-        + "\n\n"
-        + t("top_up_waiting_verification", user.language).format(id=request.id, status=_status_text(request, user.language))
-        + auto_message,
-        reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()),
+    reply_text = _build_bybit_submit_result_text(
+        language=user.language,
+        request=request,
+        submitted_reference=submitted_reference,
+        auto_verified=auto_verified,
+        auto_attempted=auto_attempted,
     )
+    await message.answer(reply_text, reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
     await state.set_state(TopUpStates.choosing_method)
 
 
@@ -320,6 +317,27 @@ def _format_bybit_transfer_instructions(*, request: TopUpRequest, language: Lang
         recipient_uid=recipient_uid,
         recipient_note=recipient_note,
     ) + "\n\n" + t("top_up_bybit_reference_prompt", language)
+
+
+def _build_bybit_submit_result_text(
+    *,
+    language: Language,
+    request: TopUpRequest,
+    submitted_reference: str,
+    auto_verified: bool,
+    auto_attempted: bool,
+) -> str:
+    submitted = t("top_up_bybit_reference_submitted", language).format(reference=submitted_reference)
+    if auto_verified:
+        return submitted + "\n\n" + t("top_up_bybit_auto_verified", language).format(
+            id=request.id,
+            amount=request.net_amount,
+            currency=request.currency.value,
+        )
+    waiting = t("top_up_waiting_verification", language).format(id=request.id, status=_status_text(request, language))
+    if auto_attempted:
+        return submitted + "\n\n" + waiting + "\n\n" + t("top_up_bybit_auto_pending", language)
+    return submitted + "\n\n" + waiting
 
 
 

@@ -28,3 +28,9 @@ def test_activation_link_button_absent_when_url_missing() -> None:
 
     buttons = [button for row in keyboard.inline_keyboard for button in row]
     assert all(button.text != t("orders_action_open_activation", Language.RU) for button in buttons)
+
+
+def test_bybit_via_balance_hint_text_present() -> None:
+    hint = t("orders_bybit_via_balance_hint", Language.EN)
+    assert "Bybit" in hint
+    assert "balance" in hint.lower()

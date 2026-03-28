@@ -14,32 +14,25 @@ from app.bot.keyboards.top_up import (
     TOP_UP_MY_REQUESTS,
     top_up_cancel_keyboard,
     top_up_main_keyboard,
-    top_up_network_keyboard,
 )
+from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.enums import Language, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
 from app.models.user import User
-from app.services.top_up_requests import (
-    create_top_up_request,
-    get_top_up_request,
-    list_user_top_up_requests,
-    set_bybit_sender_reference,
-    set_top_up_txid,
-)
-from app.services.blockchain.options import SupportedCryptoOption, get_supported_crypto_options
+from app.services.admin import is_admin_telegram_id
+from app.services.top_up_payments import check_crypto_pay_top_up, create_crypto_pay_top_up_invoice
+from app.services.bybit_top_up_verification import try_auto_verify_bybit_top_up
+from app.services.top_up_requests import create_top_up_request, get_top_up_request, list_user_top_up_requests, set_bybit_sender_reference
 from app.services.top_up_statuses import TopUpRequestTransitionError
 from app.services.users import get_user_by_telegram_id, init_or_update_user
-from app.services.admin import is_admin_telegram_id
-from app.core.config import get_settings
 
 router = Router(name="top_up")
 
+
 class TopUpStates(StatesGroup):
     choosing_method = State()
-    crypto_network = State()
     crypto_amount = State()
-    crypto_txid = State()
     bybit_amount = State()
     bybit_sender_reference = State()
 
@@ -48,12 +41,7 @@ def _resolve_or_create_user(tg_user) -> User:
     with SessionLocal() as db:
         user = get_user_by_telegram_id(db, tg_user.id)
         if user is None:
-            user = init_or_update_user(
-                db,
-                telegram_id=tg_user.id,
-                username=tg_user.username,
-                language_code=tg_user.language_code,
-            )
+            user = init_or_update_user(db, telegram_id=tg_user.id, username=tg_user.username, language_code=tg_user.language_code)
         return user
 
 
@@ -61,7 +49,7 @@ async def _show_top_up_main(message: Message, *, user: User, state: FSMContext) 
     await state.set_state(TopUpStates.choosing_method)
     await message.answer(
         t("top_up_main", user.language).format(balance=user.balance, currency=user.currency.value),
-        reply_markup=top_up_main_keyboard(user.language),
+        reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()),
     )
 
 
@@ -103,19 +91,17 @@ async def top_up_show_requests(message: Message, state: FSMContext) -> None:
         requests = list_user_top_up_requests(db, user_id=user.id)
 
     if not requests:
-        await message.answer(t("top_up_no_requests", user.language), reply_markup=top_up_main_keyboard(user.language))
+        await message.answer(t("top_up_no_requests", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
         return
 
     lines = [t("top_up_status_list_title", user.language)]
     for request in requests:
-        lines.append(
-            f"#{request.id} • {request.amount} {request.currency.value} • {_status_text(request, user.language)}"
-        )
+        lines.append(f"#{request.id} • net={request.net_amount} / gross={request.gross_amount} {request.currency.value} • {_status_text(request, user.language)}")
     lines.append("")
     lines.append(t("top_up_open_request_hint", user.language))
 
     await state.set_state(TopUpStates.choosing_method)
-    await message.answer("\n".join(lines), reply_markup=top_up_main_keyboard(user.language))
+    await message.answer("\n".join(lines), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
 
 
 @router.message(TopUpStates.choosing_method, F.text.regexp(r"^#?\d+$"))
@@ -129,13 +115,19 @@ async def top_up_request_details(message: Message, state: FSMContext) -> None:
 
     with SessionLocal() as db:
         request = get_top_up_request(db, request_id=request_id, user_id=user.id)
+        if request is not None and request.method == TopUpMethod.CRYPTO_PAY and request.status == TopUpStatus.PENDING:
+            check_crypto_pay_top_up(db, request_id=request.id)
+            request = get_top_up_request(db, request_id=request_id, user_id=user.id)
+        if request is not None and request.method == TopUpMethod.BYBIT_UID and request.status == TopUpStatus.WAITING_VERIFICATION and _is_bybit_auto_verify_ready():
+            try_auto_verify_bybit_top_up(db, request_id=request.id)
+            request = get_top_up_request(db, request_id=request_id, user_id=user.id)
 
     if request is None:
-        await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language))
+        await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
         return
 
     await state.set_state(TopUpStates.choosing_method)
-    await message.answer(_format_top_up_request_details(request, user.language), reply_markup=top_up_main_keyboard(user.language))
+    await message.answer(_format_top_up_request_details(request, user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
 
 
 @router.message(TopUpStates.choosing_method, F.text.in_({t(TOP_UP_METHOD_CRYPTO, Language.RU), t(TOP_UP_METHOD_CRYPTO, Language.EN)}))
@@ -143,41 +135,8 @@ async def top_up_crypto_intro(message: Message, state: FSMContext) -> None:
     if message.from_user is None:
         return
     user = _resolve_or_create_user(message.from_user)
-    choices = _crypto_option_choices()
-    await state.set_state(TopUpStates.crypto_network)
-    await message.answer(
-        t("top_up_crypto_intro", user.language),
-        reply_markup=top_up_network_keyboard(user.language, network_labels=list(choices.keys())),
-    )
-
-
-@router.message(TopUpStates.crypto_network)
-async def top_up_crypto_network(message: Message, state: FSMContext) -> None:
-    if message.from_user is None or not message.text:
-        return
-    user = _resolve_or_create_user(message.from_user)
-
-    if message.text in {t(TOP_UP_CANCEL, user.language), t("nav_back", user.language)}:
-        await _show_top_up_main(message, user=user, state=state)
-        return
-
-    choices = _crypto_option_choices()
-    selected_option = choices.get(message.text)
-
-    if selected_option is None:
-        await message.answer(
-            t("top_up_network_invalid", user.language),
-            reply_markup=top_up_network_keyboard(user.language, network_labels=list(choices.keys())),
-        )
-        return
-
-    await state.update_data(
-        network_label=selected_option.display_label,
-        requested_network=selected_option.network,
-        requested_token=selected_option.token_symbol,
-    )
     await state.set_state(TopUpStates.crypto_amount)
-    await message.answer(t("top_up_enter_amount", user.language), reply_markup=top_up_cancel_keyboard(user.language))
+    await message.answer(t("top_up_crypto_intro", user.language), reply_markup=top_up_cancel_keyboard(user.language))
 
 
 @router.message(TopUpStates.crypto_amount)
@@ -195,73 +154,27 @@ async def top_up_crypto_amount(message: Message, state: FSMContext) -> None:
         await message.answer(t("top_up_amount_invalid", user.language), reply_markup=top_up_cancel_keyboard(user.language))
         return
 
-    data = await state.get_data()
     with SessionLocal() as db:
-        request = create_top_up_request(
-            db,
-            user_id=user.id,
-            method=TopUpMethod.CRYPTO_TXID,
-            amount=amount,
-            currency=user.currency,
-            requested_network=data.get("requested_network"),
-            requested_token=data.get("requested_token"),
-            external_reference=data.get("network_label"),
-        )
+        request = create_top_up_request(db, user_id=user.id, method=TopUpMethod.CRYPTO_PAY, amount=amount, currency=user.currency)
+        invoice_result = create_crypto_pay_top_up_invoice(db, request_id=request.id)
+        request = invoice_result.request or request
 
-    await state.update_data(top_up_request_id=request.id)
-    await state.set_state(TopUpStates.crypto_txid)
-    await message.answer(
-        t("top_up_request_summary", user.language).format(
-            id=request.id,
-            method=t("top_up_method_crypto", user.language),
-            amount=request.amount,
-            currency=request.currency.value,
-            status=_status_text(request, user.language),
-            note=request.external_reference or "-",
-        )
-        + "\n\n"
-        + t("top_up_enter_txid", user.language),
-        reply_markup=top_up_cancel_keyboard(user.language),
+    summary = t("top_up_request_summary", user.language).format(
+        id=request.id,
+        method=t("top_up_method_crypto", user.language),
+        amount=request.net_amount,
+        fee_amount=request.fee_amount,
+        gross_amount=request.gross_amount,
+        currency=request.currency.value,
+        status=_status_text(request, user.language),
+        note=request.provider_payment_url or request.provider_invoice_url or t("top_up_not_provided", user.language),
     )
-
-
-@router.message(TopUpStates.crypto_txid)
-async def top_up_crypto_txid(message: Message, state: FSMContext) -> None:
-    if message.from_user is None or not message.text:
-        return
-    user = _resolve_or_create_user(message.from_user)
-    if message.text in {t(TOP_UP_CANCEL, user.language), t("nav_back", user.language)}:
-        await _show_top_up_main(message, user=user, state=state)
-        return
-
-    txid = message.text.strip()
-    if len(txid) < 8 or " " in txid:
-        await message.answer(t("top_up_txid_invalid", user.language), reply_markup=top_up_cancel_keyboard(user.language))
-        return
-
-    data = await state.get_data()
-    request_id = data.get("top_up_request_id")
-    if not request_id:
-        await _show_top_up_main(message, user=user, state=state)
-        return
-
-    with SessionLocal() as db:
-        request = get_top_up_request(db, request_id=request_id, user_id=user.id)
-        if request is None:
-            await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language))
-            await _show_top_up_main(message, user=user, state=state)
-            return
-        try:
-            request = set_top_up_txid(db, request=request, txid=txid)
-        except TopUpRequestTransitionError:
-            await message.answer(t("top_up_txid_state_invalid", user.language), reply_markup=top_up_main_keyboard(user.language))
-            await _show_top_up_main(message, user=user, state=state)
-            return
-
-    await message.answer(
-        t("top_up_waiting_verification", user.language).format(id=request.id, status=_status_text(request, user.language)),
-        reply_markup=top_up_main_keyboard(user.language),
+    summary += "\n\n" + (
+        t("top_up_crypto_invoice_created", user.language)
+        if invoice_result.ok
+        else t("top_up_crypto_invoice_failed", user.language)
     )
+    await message.answer(summary, reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
     await state.set_state(TopUpStates.choosing_method)
 
 
@@ -270,6 +183,10 @@ async def top_up_bybit_intro(message: Message, state: FSMContext) -> None:
     if message.from_user is None:
         return
     user = _resolve_or_create_user(message.from_user)
+    if not _is_bybit_available():
+        await message.answer(t("top_up_bybit_unavailable", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=False))
+        await state.set_state(TopUpStates.choosing_method)
+        return
     await state.set_state(TopUpStates.bybit_amount)
     await message.answer(t("top_up_bybit_intro", user.language), reply_markup=top_up_cancel_keyboard(user.language))
 
@@ -290,13 +207,7 @@ async def top_up_bybit_amount(message: Message, state: FSMContext) -> None:
         return
 
     with SessionLocal() as db:
-        request = create_top_up_request(
-            db,
-            user_id=user.id,
-            method=TopUpMethod.BYBIT_UID,
-            amount=amount,
-            currency=user.currency,
-        )
+        request = create_top_up_request(db, user_id=user.id, method=TopUpMethod.BYBIT_UID, amount=amount, currency=user.currency)
 
     await state.update_data(top_up_request_id=request.id)
     await state.set_state(TopUpStates.bybit_sender_reference)
@@ -305,13 +216,15 @@ async def top_up_bybit_amount(message: Message, state: FSMContext) -> None:
         t("top_up_request_summary", user.language).format(
             id=request.id,
             method=t("top_up_method_bybit", user.language),
-            amount=request.amount,
+            amount=request.net_amount,
+            fee_amount=request.fee_amount,
+            gross_amount=request.gross_amount,
             currency=request.currency.value,
             status=_status_text(request, user.language),
             note=t("top_up_not_provided", user.language),
         )
         + "\n\n"
-        + t("top_up_bybit_reference_prompt", user.language),
+        + _format_bybit_transfer_instructions(request=request, language=user.language),
         reply_markup=top_up_cancel_keyboard(user.language),
     )
 
@@ -339,7 +252,7 @@ async def top_up_bybit_sender_reference(message: Message, state: FSMContext) -> 
     with SessionLocal() as db:
         request = get_top_up_request(db, request_id=request_id, user_id=user.id)
         if request is None:
-            await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language))
+            await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
             await _show_top_up_main(message, user=user, state=state)
             return
         try:
@@ -351,19 +264,81 @@ async def top_up_bybit_sender_reference(message: Message, state: FSMContext) -> 
             )
         except TopUpRequestTransitionError:
             await message.answer(
-                t("top_up_bybit_reference_state_invalid", user.language), reply_markup=top_up_main_keyboard(user.language)
+                t("top_up_bybit_reference_state_invalid", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available())
             )
             await _show_top_up_main(message, user=user, state=state)
             return
 
     submitted_reference = sender_uid or external_reference or t("top_up_not_provided", user.language)
-    await message.answer(
-        t("top_up_bybit_reference_submitted", user.language).format(reference=submitted_reference)
-        + "\n\n"
-        + t("top_up_waiting_verification", user.language).format(id=request.id, status=_status_text(request, user.language)),
-        reply_markup=top_up_main_keyboard(user.language),
+    auto_verified = False
+    auto_attempted = False
+    with SessionLocal() as db:
+        latest = get_top_up_request(db, request_id=request.id, user_id=user.id)
+        if latest is not None and _is_bybit_auto_verify_ready():
+            auto_attempted = True
+            auto_result = try_auto_verify_bybit_top_up(db, request_id=latest.id)
+            latest = get_top_up_request(db, request_id=latest.id, user_id=user.id)
+            if auto_result.ok and latest is not None and latest.status == TopUpStatus.VERIFIED:
+                auto_verified = True
+
+    reply_text = _build_bybit_submit_result_text(
+        language=user.language,
+        request=request,
+        submitted_reference=submitted_reference,
+        auto_verified=auto_verified,
+        auto_attempted=auto_attempted,
     )
+    await message.answer(reply_text, reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
     await state.set_state(TopUpStates.choosing_method)
+
+
+def _is_bybit_available() -> bool:
+    settings = get_settings()
+    return settings.bybit_enabled and bool((settings.bybit_recipient_uid or "").strip())
+
+
+def _is_bybit_auto_verify_ready() -> bool:
+    settings = get_settings()
+    return bool(
+        settings.bybit_auto_verify_enabled
+        and settings.bybit_api_key
+        and settings.bybit_api_secret
+        and (settings.bybit_recipient_uid or "").strip()
+    )
+
+
+def _format_bybit_transfer_instructions(*, request: TopUpRequest, language: Language) -> str:
+    settings = get_settings()
+    recipient_uid = (settings.bybit_recipient_uid or "").strip() or t("top_up_not_provided", language)
+    recipient_note = (settings.bybit_recipient_note or "").strip() or t("top_up_not_provided", language)
+    return t("top_up_bybit_transfer_instruction", language).format(
+        gross_amount=request.gross_amount,
+        currency=request.currency.value,
+        recipient_uid=recipient_uid,
+        recipient_note=recipient_note,
+    ) + "\n\n" + t("top_up_bybit_reference_prompt", language)
+
+
+def _build_bybit_submit_result_text(
+    *,
+    language: Language,
+    request: TopUpRequest,
+    submitted_reference: str,
+    auto_verified: bool,
+    auto_attempted: bool,
+) -> str:
+    submitted = t("top_up_bybit_reference_submitted", language).format(reference=submitted_reference)
+    if auto_verified:
+        return submitted + "\n\n" + t("top_up_bybit_auto_verified", language).format(
+            id=request.id,
+            amount=request.net_amount,
+            currency=request.currency.value,
+        )
+    waiting = t("top_up_waiting_verification", language).format(id=request.id, status=_status_text(request, language))
+    if auto_attempted:
+        return submitted + "\n\n" + waiting + "\n\n" + t("top_up_bybit_auto_pending", language)
+    return submitted + "\n\n" + waiting
+
 
 
 def _parse_amount(raw_amount: str) -> Decimal | None:
@@ -395,10 +370,13 @@ def _format_top_up_request_details(request: TopUpRequest, language: Language) ->
     verified_token_value = request.verified_token or t("top_up_not_provided", language)
     verified_amount_value = request.verified_amount if request.verified_amount is not None else t("top_up_not_provided", language)
     verified_recipient_value = request.verified_recipient or t("top_up_not_provided", language)
+    method_key = "top_up_method_bybit" if request.method == TopUpMethod.BYBIT_UID else "top_up_method_crypto"
     return t("top_up_request_details", language).format(
         id=request.id,
-        method=t(f"top_up_method_{'crypto' if request.method == TopUpMethod.CRYPTO_TXID else 'bybit'}", language),
-        amount=request.amount,
+        method=t(method_key, language),
+        amount=request.net_amount,
+        fee_amount=request.fee_amount,
+        gross_amount=request.gross_amount,
         currency=request.currency.value,
         status=_status_text(request, language),
         txid=txid_value,
@@ -441,10 +419,3 @@ def _parse_bybit_sender_reference(raw_value: str) -> tuple[str | None, str | Non
         return None, value
 
     return None, None
-
-
-def _crypto_option_choices() -> dict[str, SupportedCryptoOption]:
-    choices: dict[str, SupportedCryptoOption] = {}
-    for option in get_supported_crypto_options().values():
-        choices[option.display_label] = option
-    return choices

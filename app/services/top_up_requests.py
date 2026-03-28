@@ -8,6 +8,7 @@ from app.models.activity_log import ActivityLog
 from app.models.enums import Currency, LogEventType, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
 from app.services.top_up_statuses import TopUpRequestTransitionError, ensure_top_up_status_transition
+from app.services.fees import calculate_external_fee
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,14 @@ def create_top_up_request(
     external_reference: str | None = None,
 ) -> TopUpRequest:
     initial_status = TopUpStatus.WAITING_TXID if method == TopUpMethod.CRYPTO_TXID else TopUpStatus.PENDING
+    fee = calculate_external_fee(amount)
     request = TopUpRequest(
         user_id=user_id,
         method=method,
-        amount=amount,
+        amount=fee.net_amount,
+        net_amount=fee.net_amount,
+        fee_amount=fee.fee_amount,
+        gross_amount=fee.gross_amount,
         currency=currency,
         status=initial_status,
         requested_network=requested_network,
@@ -45,6 +50,9 @@ def create_top_up_request(
                 "top_up_request_id": request.id,
                 "method": request.method.value,
                 "amount": str(request.amount),
+                "net_amount": str(request.net_amount),
+                "fee_amount": str(request.fee_amount),
+                "gross_amount": str(request.gross_amount),
                 "currency": request.currency.value,
                 "status": request.status.value,
                 "requested_network": request.requested_network,

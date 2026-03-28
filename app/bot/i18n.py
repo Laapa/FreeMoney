@@ -88,8 +88,12 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "✅ Delivered: {delivered_at}",
     },
     "orders_action_pay": {
-        Language.RU: "💸 Оплатить",
-        Language.EN: "💸 Pay",
+        Language.RU: "💸 Внешняя оплата",
+        Language.EN: "💸 External pay",
+    },
+    "orders_action_pay_balance": {
+        Language.RU: "💰 Оплатить с баланса",
+        Language.EN: "💰 Pay with balance",
     },
     "orders_action_top_up": {
         Language.RU: "💳 Пополнить",
@@ -129,8 +133,12 @@ TEXTS: dict[str, dict[Language, str]] = {
     "orders_action_open_activation": {Language.RU: "🚀 Открыть активатор", Language.EN: "🚀 Open activation page"},
     "orders_action_cancel_payment": {Language.RU: "❌ Отменить оплату", Language.EN: "❌ Cancel payment"},
     "orders_payment_screen": {
-        Language.RU: "Оплата заказа #{id}\nТовар: {title}\nСумма: {amount} {currency}\nМетод: {method}\nСоздан: {created_at}\nОплатить до: {deadline}",
-        Language.EN: "Order #{id} payment\nItem: {title}\nAmount: {amount} {currency}\nMethod: {method}\nCreated: {created_at}\nPay until: {deadline}",
+        Language.RU: "Оплата заказа #{id}\nТовар: {title}\nЦена товара (net): {amount} {currency}\nКомиссия: {fee_amount} {currency}\nК оплате (gross): {gross_amount} {currency}\nМетод: {method}\nСоздан: {created_at}\nОплатить до: {deadline}",
+        Language.EN: "Order #{id} payment\nItem: {title}\nItem price (net): {amount} {currency}\nFee: {fee_amount} {currency}\nTo pay (gross): {gross_amount} {currency}\nMethod: {method}\nCreated: {created_at}\nPay until: {deadline}",
+    },
+    "orders_bybit_via_balance_hint": {
+        Language.RU: "Bybit: пополните баланс через раздел «💳 Пополнить», затем оплатите заказ кнопкой «💰 Оплатить с баланса».",
+        Language.EN: "Bybit: top up balance in “💳 Top Up”, then pay order with “💰 Pay with balance”.",
     },
     "orders_payment_pending": {
         Language.RU: "Оплата еще не подтверждена.",
@@ -267,8 +275,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Send a request ID (for example, #12) to view details.",
     },
     "top_up_request_details": {
-        Language.RU: "Детали заявки #{id}\nМетод: {method}\nСумма: {amount} {currency}\nСтатус: {status}\nTXID: {txid}\nUID отправителя: {sender_uid}\nВнешняя ссылка/референс: {external_reference}\nПроверенная сеть: {verified_network}\nПроверенный токен: {verified_token}\nПроверенная сумма: {verified_amount}\nКошелек получателя: {verified_recipient}\nСоздана: {created_at}\nПроверена: {reviewed_at}\nПримечание проверки: {verification_note}",
-        Language.EN: "Request #{id} details\nMethod: {method}\nAmount: {amount} {currency}\nStatus: {status}\nTXID: {txid}\nSender UID: {sender_uid}\nExternal reference: {external_reference}\nVerified network: {verified_network}\nVerified token: {verified_token}\nVerified amount: {verified_amount}\nRecipient wallet: {verified_recipient}\nCreated at: {created_at}\nReviewed at: {reviewed_at}\nVerification note: {verification_note}",
+        Language.RU: "Детали заявки #{id}\nМетод: {method}\nК зачислению (net): {amount} {currency}\nКомиссия: {fee_amount} {currency}\nК оплате (gross): {gross_amount} {currency}\nСтатус: {status}\nTXID: {txid}\nUID отправителя: {sender_uid}\nВнешняя ссылка/референс: {external_reference}\nПроверенная сеть: {verified_network}\nПроверенный токен: {verified_token}\nПроверенная сумма: {verified_amount}\nКошелек получателя: {verified_recipient}\nСоздана: {created_at}\nПроверена: {reviewed_at}\nПримечание проверки: {verification_note}",
+        Language.EN: "Request #{id} details\nMethod: {method}\nTo credit (net): {amount} {currency}\nFee: {fee_amount} {currency}\nTo pay (gross): {gross_amount} {currency}\nStatus: {status}\nTXID: {txid}\nSender UID: {sender_uid}\nExternal reference: {external_reference}\nVerified network: {verified_network}\nVerified token: {verified_token}\nVerified amount: {verified_amount}\nRecipient wallet: {verified_recipient}\nCreated at: {created_at}\nReviewed at: {reviewed_at}\nVerification note: {verification_note}",
     },
     "top_up_not_provided": {
         Language.RU: "—",
@@ -280,12 +288,12 @@ TEXTS: dict[str, dict[Language, str]] = {
     "top_up_status_rejected": {Language.RU: "Отклонено", Language.EN: "Rejected"},
     "top_up_status_expired": {Language.RU: "Истекло", Language.EN: "Expired"},
     "top_up_status_pending": {Language.RU: "В обработке", Language.EN: "Pending"},
-    "top_up_method_crypto": {Language.RU: "🧾 Crypto by TXID", Language.EN: "🧾 Crypto by TXID"},
+    "top_up_method_crypto": {Language.RU: "🧾 Crypto Pay", Language.EN: "🧾 Crypto Pay"},
     "top_up_method_bybit": {Language.RU: "🏦 Bybit UID", Language.EN: "🏦 Bybit UID"},
     "top_up_cancel": {Language.RU: "❌ Отменить", Language.EN: "❌ Cancel"},
     "top_up_crypto_intro": {
-        Language.RU: "Отправьте перевод и укажите TXID. Сначала выберите сеть/токен:",
-        Language.EN: "Send a transfer and provide TXID. First choose network/token:",
+        Language.RU: "Пополнение через Crypto Pay invoice. Введите сумму, которую хотите получить на баланс (net).",
+        Language.EN: "Top up via Crypto Pay invoice. Enter amount you want to receive on balance (net).",
     },
     "top_up_network_bsc_usdt": {Language.RU: "USDT BSC (BEP20)", Language.EN: "USDT BSC (BEP20)"},
     "top_up_network_invalid": {
@@ -301,8 +309,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Invalid amount. Enter a number greater than 0 with up to 2 decimal places.",
     },
     "top_up_request_summary": {
-        Language.RU: "Заявка на пополнение создана ✅\nID: #{id}\nМетод: {method}\nСумма: {amount} {currency}\nСтатус: {status}\nПримечание: {note}",
-        Language.EN: "Top-up request created ✅\nID: #{id}\nMethod: {method}\nAmount: {amount} {currency}\nStatus: {status}\nNote: {note}",
+        Language.RU: "Заявка на пополнение создана ✅\nID: #{id}\nМетод: {method}\nК зачислению (net): {amount} {currency}\nКомиссия: {fee_amount} {currency}\nК оплате (gross): {gross_amount} {currency}\nСтатус: {status}\nПримечание: {note}",
+        Language.EN: "Top-up request created ✅\nID: #{id}\nMethod: {method}\nTo credit (net): {amount} {currency}\nFee: {fee_amount} {currency}\nTo pay (gross): {gross_amount} {currency}\nStatus: {status}\nNote: {note}",
     },
     "top_up_enter_txid": {
         Language.RU: "Теперь отправьте TXID транзакции.",
@@ -325,8 +333,26 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Request #{id} was sent for review. Current status: {status}. We will notify you after verification.",
     },
     "top_up_bybit_intro": {
-        Language.RU: "Пополнение через Bybit UID. Введите сумму, и мы создадим заявку на ручную проверку оператором.",
-        Language.EN: "Top up via Bybit UID. Enter the amount and we will create a request for operator/manual review.",
+        Language.RU: "Пополнение через Bybit. Введите сумму, которую хотите получить на баланс (net).",
+        Language.EN: "Top up via Bybit. Enter amount you want to receive on balance (net).",
+    },
+
+    "top_up_crypto_invoice_created": {
+        Language.RU: "Откройте ссылку в примечании и оплатите Crypto Pay invoice. После оплаты откройте заявку снова (#ID), статус обновится автоматически.",
+        Language.EN: "Open the link in note and pay the Crypto Pay invoice. After payment open request again (#ID), status will auto-refresh.",
+    },
+    "top_up_crypto_invoice_failed": {
+        Language.RU: "Не удалось создать invoice Crypto Pay. Проверьте настройки и попробуйте позже.",
+        Language.EN: "Failed to create Crypto Pay invoice. Check settings and try later.",
+    },
+
+    "top_up_bybit_unavailable": {
+        Language.RU: "Пополнение Bybit временно недоступно: не настроен UID получателя.",
+        Language.EN: "Bybit top up is temporarily unavailable: recipient UID is not configured.",
+    },
+    "top_up_bybit_transfer_instruction": {
+        Language.RU: "Переведите ровно {gross_amount} {currency} на Bybit UID получателя: {recipient_uid}\nКомментарий/инструкция: {recipient_note}",
+        Language.EN: "Send exactly {gross_amount} {currency} to recipient Bybit UID: {recipient_uid}\nComment/instruction: {recipient_note}",
     },
     "top_up_bybit_reference_prompt": {
         Language.RU: "Отправьте UID отправителя Bybit (только цифры) или внешний референс платежа (минимум 6 символов).",
@@ -339,6 +365,14 @@ TEXTS: dict[str, dict[Language, str]] = {
     "top_up_bybit_reference_state_invalid": {
         Language.RU: "Нельзя обновить Bybit UID/референс: заявка уже не в ожидаемом статусе.",
         Language.EN: "Cannot update Bybit UID/reference: request is no longer in expected status.",
+    },
+    "top_up_bybit_auto_verified": {
+        Language.RU: "Bybit auto-verify: заявка #{id} подтверждена автоматически, зачислено {amount} {currency}.",
+        Language.EN: "Bybit auto-verify: request #{id} was verified automatically, credited {amount} {currency}.",
+    },
+    "top_up_bybit_auto_pending": {
+        Language.RU: "Bybit auto-verify включен, но платеж пока не найден. Заявка остается на проверке.",
+        Language.EN: "Bybit auto-verify is enabled, but payment is not found yet. Request stays under verification.",
     },
     "top_up_bybit_reference_submitted": {
         Language.RU: "UID/референс сохранен: {reference}. Заявка будет проверена оператором вручную.",

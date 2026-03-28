@@ -15,6 +15,7 @@ from app.bot.keyboards.account import (
     CALLBACK_ORDERS_OPEN,
     CALLBACK_ORDERS_PAGE,
     CALLBACK_ORDERS_PAY,
+    CALLBACK_ORDERS_PAY_BALANCE,
     CALLBACK_ORDERS_TOP_UP,
     CALLBACK_PROFILE_BACK,
     CALLBACK_PROFILE_MENU,
@@ -31,7 +32,7 @@ from app.models.enums import FulfillmentType, Language, OrderStatus, PaymentMeth
 from app.models.order import Order
 from app.models.user import User
 from app.bot.handlers.top_up import TopUpStates
-from app.services.orders import count_user_orders, get_user_order, get_user_order_stats, list_user_orders
+from app.services.orders import count_user_orders, get_user_order, get_user_order_stats, list_user_orders, pay_pending_order_from_balance
 from app.services.payments import cancel_order_payment, check_order_payment, create_order_payment
 from app.services.users import get_user_by_telegram_id, init_or_update_user
 from app.services.admin import is_admin_telegram_id
@@ -57,6 +58,12 @@ def _activation_link_for_order(order: Order) -> str | None:
     if order.fulfillment_type != FulfillmentType.ACTIVATION_TASK:
         return None
     return get_settings().activation_public_url
+
+
+
+def _is_bybit_available_for_top_up() -> bool:
+    settings = get_settings()
+    return settings.bybit_enabled and bool((settings.bybit_recipient_uid or "").strip())
 
 
 def _payment_method_label(method: PaymentMethod, language: Language) -> str:
@@ -303,6 +310,7 @@ async def on_order_open(callback: CallbackQuery) -> None:
             language=user.language,
             order_id=order.id,
             can_pay=order.status == OrderStatus.PENDING,
+            can_pay_balance=order.status == OrderStatus.PENDING and user.balance >= order.price,
             show_top_up=order.status == OrderStatus.PENDING,
             activation_url=_activation_link_for_order(order),
         ),
@@ -348,6 +356,7 @@ async def on_order_pay(callback: CallbackQuery) -> None:
                 language=user.language,
                 order_id=order_id,
                 can_pay=False,
+                can_pay_balance=False,
                 show_top_up=False,
             ),
         )
@@ -368,16 +377,21 @@ async def on_order_pay(callback: CallbackQuery) -> None:
             id=order.id,
             title=item_title
             or (f"#{order.product_id}" if order.product_id else t(f"orders_fulfillment_{order.fulfillment_type.value}", user.language)),
-            amount=order.price,
+            amount=payment.net_amount if payment else order.price,
+            fee_amount=payment.fee_amount if payment else 0,
+            gross_amount=payment.gross_amount if payment else order.price,
             currency=user.currency.value,
             method=payment_method_label,
             created_at=_format_dt(order.created_at),
             deadline=payment_deadline,
-        ),
+        )
+        + "\n\n"
+        + t("orders_bybit_via_balance_hint", user.language),
         reply_markup=order_details_keyboard(
             language=user.language,
             order_id=order.id,
             can_pay=False,
+            can_pay_balance=False,
             show_top_up=True,
             payment_url=payment_url,
             payment_screen=True,
@@ -433,6 +447,7 @@ async def on_order_check_payment(callback: CallbackQuery) -> None:
             language=user.language,
             order_id=order.id,
             can_pay=False,
+            can_pay_balance=False,
             show_top_up=False,
             activation_url=_activation_link_for_order(order),
         ),
@@ -459,8 +474,44 @@ async def on_order_cancel_payment(callback: CallbackQuery) -> None:
     if not result.ok:
         await callback.answer(t("orders_payment_not_available", user.language), show_alert=True)
         return
-    await message.edit_text(t("orders_payment_canceled", user.language), reply_markup=order_details_keyboard(language=user.language, order_id=order_id, can_pay=False, show_top_up=False))
+    await message.edit_text(t("orders_payment_canceled", user.language), reply_markup=order_details_keyboard(language=user.language, order_id=order_id, can_pay=False, can_pay_balance=False, show_top_up=False))
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith(f"{CALLBACK_ORDERS_PAY_BALANCE}:"))
+async def on_order_pay_balance(callback: CallbackQuery) -> None:
+    message = callback.message
+    if message is None or callback.data is None:
+        await callback.answer()
+        return
+
+    user = _resolve_or_create_user(callback.from_user)
+    order_id = int(callback.data.split(":")[-1])
+
+    with SessionLocal() as db:
+        result = pay_pending_order_from_balance(db, user_id=user.id, order_id=order_id)
+        order = get_user_order(db, user_id=user.id, order_id=order_id)
+        if order is not None:
+            offer = db.get(Offer, order.offer_id)
+            item_title = offer.name_ru if (offer and user.language == Language.RU) else (offer.name_en if offer else None)
+        else:
+            item_title = None
+
+    if not result.ok:
+        await callback.answer(t("orders_payment_insufficient_balance", user.language).format(balance=user.balance, currency=user.currency.value), show_alert=True)
+        return
+
+    if order is None:
+        await callback.answer(t("orders_not_found", user.language), show_alert=True)
+        return
+
+    await message.edit_text(
+        t("orders_payment_success", user.language) + "\n\n" + _render_order_details_text(language=user.language, order=order, currency=user.currency.value, item_title=item_title),
+        reply_markup=order_details_keyboard(language=user.language, order_id=order.id, can_pay=False, can_pay_balance=False, show_top_up=False, activation_url=_activation_link_for_order(order)),
+    )
+    if order.delivered_payload:
+        await message.answer(t("orders_delivery_message", user.language).format(payload=order.delivered_payload))
+    await callback.answer(t("orders_payment_success_toast", user.language))
 
 
 @router.callback_query(F.data == CALLBACK_ORDERS_TOP_UP)
@@ -474,6 +525,6 @@ async def on_order_top_up(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(TopUpStates.choosing_method)
     await message.answer(
         t("top_up_main", user.language).format(balance=user.balance, currency=user.currency.value),
-        reply_markup=top_up_main_keyboard(user.language),
+        reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available_for_top_up()),
     )
     await callback.answer()

@@ -409,3 +409,45 @@ def test_bybit_duplicate_verification_does_not_double_credit() -> None:
     assert second.ok is False
     assert second.error == TopUpVerificationError.ALREADY_CREDITED
     assert user.balance == Decimal("30.00")
+
+
+def test_crypto_txid_verification_uses_gross_amount_after_fee() -> None:
+    db = make_session()
+    user = User(telegram_id=9300, balance=Decimal("0.00"))
+    db.add(user)
+    db.commit()
+
+    request = create_top_up_request(
+        db,
+        user_id=user.id,
+        method=TopUpMethod.CRYPTO_TXID,
+        amount=Decimal("100.00"),
+        currency=Currency.USD,
+        requested_network="bsc",
+        requested_token="usdt",
+    )
+    request = set_top_up_txid(db, request=request, txid="grosschecktx")
+
+    class CaptureVerifier:
+        def __init__(self) -> None:
+            self.expected_amount = None
+
+        def verify_transfer(self, **kwargs) -> BlockchainVerificationResult:
+            self.expected_amount = kwargs.get("expected_amount")
+            return BlockchainVerificationResult(
+                ok=True,
+                data=BlockchainVerificationSuccess(
+                    tx_hash="grosschecktx",
+                    network="bsc",
+                    token="usdt",
+                    amount=kwargs.get("expected_amount"),
+                    recipient="0xrecipient",
+                    raw_reference="explorer:https://api.bscscan.com/api",
+                ),
+            )
+
+    verifier = CaptureVerifier()
+    result = verify_crypto_txid_top_up(db, request_id=request.id, target_status=TopUpStatus.VERIFIED, evm_verifier=verifier)
+
+    assert result.ok is True
+    assert verifier.expected_amount == Decimal("103.00")

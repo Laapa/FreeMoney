@@ -268,6 +268,22 @@ TEXTS: dict[str, dict[Language, str]] = {
             "Open Orders and pay this reservation within {ttl_minutes} minutes."
         ),
     },
+    "products_order_created_success": {
+        Language.RU: (
+            "Заказ создан ✅\n"
+            "Категория: {title}\n"
+            "Order ID: {order_id}\n"
+            "Цена: {price}\n\n"
+            "Откройте раздел заказов и оплатите заказ."
+        ),
+        Language.EN: (
+            "Order created ✅\n"
+            "Category: {title}\n"
+            "Order ID: {order_id}\n"
+            "Price: {price}\n\n"
+            "Open Orders and pay for this order."
+        ),
+    },
     "products_reserved_toast": {
         Language.RU: "Товар зарезервирован",
         Language.EN: "Product reserved",

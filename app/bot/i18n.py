@@ -407,8 +407,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Bybit auto-verify is enabled, but payment is not found yet. Request stays under verification.",
     },
     "top_up_bybit_reference_submitted": {
-        Language.RU: "UID/референс сохранен: {reference}. Заявка будет проверена оператором вручную.",
-        Language.EN: "UID/reference saved: {reference}. The request will be reviewed manually by an operator.",
+        Language.RU: "UID/референс сохранен: {reference}. Запущена автоматическая проверка платежа.",
+        Language.EN: "UID/reference saved: {reference}. Automatic payment verification has started.",
     },
     "rules_placeholder": {
         Language.RU: "Правила WEBSTER-SHOP будут опубликованы здесь.",

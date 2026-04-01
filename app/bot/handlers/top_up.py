@@ -96,7 +96,9 @@ async def top_up_show_requests(message: Message, state: FSMContext) -> None:
 
     lines = [t("top_up_status_list_title", user.language)]
     for request in requests:
-        lines.append(f"#{request.id} • net={request.net_amount} / gross={request.gross_amount} {request.currency.value} • {_status_text(request, user.language)}")
+        lines.append(
+            f"#{request.id} • net={request.net_amount} / gross={request.gross_amount} {_top_up_display_currency(request)} • {_status_text(request, user.language)}"
+        )
     lines.append("")
     lines.append(t("top_up_open_request_hint", user.language))
 
@@ -219,7 +221,7 @@ async def top_up_bybit_amount(message: Message, state: FSMContext) -> None:
             amount=request.net_amount,
             fee_amount=request.fee_amount,
             gross_amount=request.gross_amount,
-            currency=request.currency.value,
+            currency=_top_up_display_currency(request),
             status=_status_text(request, user.language),
             note=t("top_up_not_provided", user.language),
         )
@@ -313,7 +315,7 @@ def _format_bybit_transfer_instructions(*, request: TopUpRequest, language: Lang
     recipient_note = (settings.bybit_recipient_note or "").strip() or t("top_up_not_provided", language)
     return t("top_up_bybit_transfer_instruction", language).format(
         gross_amount=request.gross_amount,
-        currency=request.currency.value,
+        currency=_top_up_display_currency(request),
         recipient_uid=recipient_uid,
         recipient_note=recipient_note,
     ) + "\n\n" + t("top_up_bybit_reference_prompt", language)
@@ -332,7 +334,7 @@ def _build_bybit_submit_result_text(
         return submitted + "\n\n" + t("top_up_bybit_auto_verified", language).format(
             id=request.id,
             amount=request.net_amount,
-            currency=request.currency.value,
+            currency=_top_up_display_currency(request),
         )
     waiting = t("top_up_waiting_verification", language).format(id=request.id, status=_status_text(request, language))
     if auto_attempted:
@@ -377,7 +379,7 @@ def _format_top_up_request_details(request: TopUpRequest, language: Language) ->
         amount=request.net_amount,
         fee_amount=request.fee_amount,
         gross_amount=request.gross_amount,
-        currency=request.currency.value,
+        currency=_top_up_display_currency(request),
         status=_status_text(request, language),
         txid=txid_value,
         sender_uid=sender_uid_value,
@@ -419,3 +421,14 @@ def _parse_bybit_sender_reference(raw_value: str) -> tuple[str | None, str | Non
         return None, value
 
     return None, None
+
+
+def _top_up_display_currency(request: TopUpRequest) -> str:
+    if request.method == TopUpMethod.BYBIT_UID:
+        return _bybit_display_coin()
+    return request.currency.value
+
+
+def _bybit_display_coin() -> str:
+    coin = (get_settings().bybit_deposit_coin or "").strip().upper()
+    return coin or "USDT"

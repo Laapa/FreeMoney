@@ -52,10 +52,33 @@ def test_parse_bybit_sender_reference_uid_or_external_reference() -> None:
     assert _parse_bybit_sender_reference("  ") == (None, None)
 
 
+def test_top_up_request_details_bybit_uses_bybit_coin_for_display(monkeypatch) -> None:
+    monkeypatch.setenv("BYBIT_DEPOSIT_COIN", "USDT")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    request = TopUpRequest(
+        id=46,
+        user_id=1,
+        method=TopUpMethod.BYBIT_UID,
+        amount=Decimal("50.00"),
+        net_amount=Decimal("50.00"),
+        fee_amount=Decimal("0.00"),
+        gross_amount=Decimal("50.00"),
+        currency=Currency.RUB,
+        status=TopUpStatus.WAITING_VERIFICATION,
+        created_at=datetime(2026, 1, 4, 5, 6, 7),
+    )
+
+    message = _format_top_up_request_details(request, Language.EN)
+    assert "50.00 USDT" in message
+
+
 def test_bybit_instruction_includes_recipient_uid_and_gross(monkeypatch) -> None:
     monkeypatch.setenv("BYBIT_ENABLED", "true")
     monkeypatch.setenv("BYBIT_RECIPIENT_UID", "99887766")
     monkeypatch.setenv("BYBIT_RECIPIENT_NOTE", "Use transfer note: SHOP")
+    monkeypatch.setenv("BYBIT_DEPOSIT_COIN", "USDT")
 
     from app.core.config import get_settings
 
@@ -75,7 +98,7 @@ def test_bybit_instruction_includes_recipient_uid_and_gross(monkeypatch) -> None
 
     message = _format_bybit_transfer_instructions(request=request, language=Language.EN)
 
-    assert "100.00 USD" in message
+    assert "100.00 USDT" in message
     assert "99887766" in message
     assert "SHOP" in message
 
@@ -134,8 +157,10 @@ def test_bybit_submit_message_success_has_no_manual_waiting_text() -> None:
         auto_verified=True,
         auto_attempted=True,
     )
+    assert "Automatic payment verification has started." in message
     assert "verified automatically" in message
     assert "sent for review" not in message
+    assert "manually by an operator" not in message
 
 
 def test_bybit_submit_message_pending_has_no_success_text() -> None:
@@ -157,5 +182,6 @@ def test_bybit_submit_message_pending_has_no_success_text() -> None:
         auto_verified=False,
         auto_attempted=True,
     )
+    assert "Automatic payment verification has started." in message
     assert "sent for review" in message
     assert "verified automatically" not in message

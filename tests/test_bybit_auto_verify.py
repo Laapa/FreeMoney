@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import create_engine
@@ -8,7 +8,7 @@ from app.db.base import Base
 from app.models.enums import Currency, Language, TopUpMethod, TopUpStatus
 from app.models.user import User
 from app.services.bybit import BybitInternalDepositRecord, BybitInternalDepositResult
-from app.services.bybit_top_up_verification import try_auto_verify_bybit_top_up
+from app.services.bybit_top_up_verification import _to_unix_ms_utc, try_auto_verify_bybit_top_up
 from app.services.top_up_requests import create_top_up_request, set_bybit_sender_reference
 
 
@@ -177,3 +177,10 @@ def test_auto_verify_disabled_fallback(monkeypatch) -> None:
     assert result.ok is False
     assert result.reason == "auto_verify_disabled"
     assert user.balance == Decimal("0.00")
+
+
+def test_to_unix_ms_utc_treats_naive_as_utc() -> None:
+    naive_dt = datetime(2026, 4, 1, 12, 34, 56)
+    aware_dt = datetime(2026, 4, 1, 12, 34, 56, tzinfo=timezone.utc)
+
+    assert _to_unix_ms_utc(naive_dt) == _to_unix_ms_utc(aware_dt)

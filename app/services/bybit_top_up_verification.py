@@ -29,6 +29,14 @@ class BybitAutoVerifyResult:
 SUCCESS_STATUSES = {"2", "success", "completed", "ok", "succeeded"}
 
 
+def _to_unix_ms_utc(dt: datetime) -> int:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return int(dt.timestamp() * 1000)
+
+
 def try_auto_verify_bybit_top_up(
     db: Session,
     *,
@@ -83,8 +91,8 @@ def try_auto_verify_bybit_top_up(
         records = _fetch_internal_records(
             client,
             coin=settings.bybit_deposit_coin,
-            start_time_ms=int(start_time.timestamp() * 1000),
-            end_time_ms=int(end_time.timestamp() * 1000),
+            start_time_ms=_to_unix_ms_utc(start_time),
+            end_time_ms=_to_unix_ms_utc(end_time),
         )
     except BybitClientError as exc:
         logger.warning("Bybit auto-verify API call failed | request_id=%s error=%s", request.id, str(exc))
@@ -157,7 +165,7 @@ def _find_record_match(
 ) -> BybitInternalDepositRecord | None:
     target_amount = quantize_money(Decimal(request.gross_amount))
     sender_uid = (request.sender_uid or "").strip()
-    created_threshold_ms = int((request.created_at - timedelta(minutes=5)).timestamp() * 1000)
+    created_threshold_ms = _to_unix_ms_utc(request.created_at - timedelta(minutes=5))
 
     candidates: list[BybitInternalDepositRecord] = []
     for record in records:

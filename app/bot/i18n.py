@@ -249,8 +249,40 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "This product is no longer available. Please choose another one.",
     },
     "products_reservation_success": {
-        Language.RU: "Резерв создан ✅\nКатегория: {title}\nReservation ID: {reservation_id}\nOrder ID: {order_id}\nЦена: {price}\n\nСледующий шаг: откройте раздел заказов и оплатите резерв с баланса.",
-        Language.EN: "Reservation created ✅\nCategory: {title}\nReservation ID: {reservation_id}\nOrder ID: {order_id}\nPrice: {price}\n\nNext step: open Orders and pay from balance.",
+        Language.RU: (
+            "Резерв создан ✅\n"
+            "Категория: {title}\n"
+            "Reservation ID: {reservation_id}\n"
+            "Order ID: {order_id}\n"
+            "Цена: {price}\n\n"
+            "Резерв действует {ttl_minutes} минут.\n"
+            "Откройте раздел заказов и оплатите резерв в течение {ttl_minutes} минут."
+        ),
+        Language.EN: (
+            "Reservation created ✅\n"
+            "Category: {title}\n"
+            "Reservation ID: {reservation_id}\n"
+            "Order ID: {order_id}\n"
+            "Price: {price}\n\n"
+            "Reservation is valid for {ttl_minutes} minutes.\n"
+            "Open Orders and pay this reservation within {ttl_minutes} minutes."
+        ),
+    },
+    "products_order_created_success": {
+        Language.RU: (
+            "Заказ создан ✅\n"
+            "Категория: {title}\n"
+            "Order ID: {order_id}\n"
+            "Цена: {price}\n\n"
+            "Откройте раздел заказов и оплатите заказ."
+        ),
+        Language.EN: (
+            "Order created ✅\n"
+            "Category: {title}\n"
+            "Order ID: {order_id}\n"
+            "Price: {price}\n\n"
+            "Open Orders and pay for this order."
+        ),
     },
     "products_reserved_toast": {
         Language.RU: "Товар зарезервирован",

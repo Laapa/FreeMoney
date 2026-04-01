@@ -67,15 +67,15 @@ def test_bybit_instruction_includes_recipient_uid_and_gross(monkeypatch) -> None
         method=TopUpMethod.BYBIT_UID,
         amount=Decimal("100.00"),
         net_amount=Decimal("100.00"),
-        fee_amount=Decimal("3.00"),
-        gross_amount=Decimal("103.00"),
+        fee_amount=Decimal("0.00"),
+        gross_amount=Decimal("100.00"),
         currency=Currency.USD,
         status=TopUpStatus.PENDING,
     )
 
     message = _format_bybit_transfer_instructions(request=request, language=Language.EN)
 
-    assert "103.00 USD" in message
+    assert "100.00 USD" in message
     assert "99887766" in message
     assert "SHOP" in message
 
@@ -122,8 +122,8 @@ def test_bybit_submit_message_success_has_no_manual_waiting_text() -> None:
         method=TopUpMethod.BYBIT_UID,
         amount=Decimal("100.00"),
         net_amount=Decimal("100.00"),
-        fee_amount=Decimal("3.00"),
-        gross_amount=Decimal("103.00"),
+        fee_amount=Decimal("0.00"),
+        gross_amount=Decimal("100.00"),
         currency=Currency.USD,
         status=TopUpStatus.VERIFIED,
     )
@@ -145,8 +145,8 @@ def test_bybit_submit_message_pending_has_no_success_text() -> None:
         method=TopUpMethod.BYBIT_UID,
         amount=Decimal("100.00"),
         net_amount=Decimal("100.00"),
-        fee_amount=Decimal("3.00"),
-        gross_amount=Decimal("103.00"),
+        fee_amount=Decimal("0.00"),
+        gross_amount=Decimal("100.00"),
         currency=Currency.USD,
         status=TopUpStatus.WAITING_VERIFICATION,
     )

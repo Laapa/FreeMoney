@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.activity_log import ActivityLog
 from app.models.enums import (
     FulfillmentStatus,
@@ -46,12 +47,13 @@ def reserve_product_for_user(
     user_id: int,
     offer_id: int,
     price: Decimal,
-    ttl_minutes: int = 15,
+    ttl_minutes: int | None = None,
     now: datetime | None = None,
     max_attempts: int = 5,
     product_id: int | None = None,
 ) -> ReservationAttemptResult:
     current_time = now or datetime.utcnow()
+    effective_ttl_minutes = ttl_minutes if ttl_minutes is not None else get_settings().product_reservation_ttl_minutes
 
     query = (
         select(ProductPool.id)
@@ -87,7 +89,7 @@ def reserve_product_for_user(
         user_id=user_id,
         product_id=reserved_product_id,
         status=ReservationStatus.ACTIVE,
-        reserved_until=current_time + timedelta(minutes=ttl_minutes),
+        reserved_until=current_time + timedelta(minutes=effective_ttl_minutes),
     )
     db.add(reservation)
     db.flush()

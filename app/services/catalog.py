@@ -9,6 +9,7 @@ from app.models.enums import FulfillmentType, Language, ProductStatus
 from app.models.offer import Offer
 from app.models.product_pool import ProductPool
 from app.models.user_offer_price import UserOfferPrice
+from app.services.purchase import release_expired_reservations
 
 
 @dataclass(slots=True)
@@ -95,6 +96,7 @@ def get_category_view(db: Session, *, language: Language, category_id: int) -> C
 
 
 def list_offers(db: Session, *, user_id: int, language: Language, category_id: int) -> list[OfferView]:
+    release_expired_reservations(db)
     direct_stock = _direct_stock_map(db)
     offers = db.scalars(
         select(Offer)
@@ -123,6 +125,7 @@ def list_offers(db: Session, *, user_id: int, language: Language, category_id: i
 
 
 def get_offer_view(db: Session, *, user_id: int, language: Language, offer_id: int) -> OfferView | None:
+    release_expired_reservations(db)
     offer = db.get(Offer, offer_id)
     if offer is None or not offer.is_active:
         return None
@@ -149,6 +152,7 @@ def get_category_breadcrumbs(db: Session, *, category_id: int, language: Languag
 
 
 def list_product_cards(db: Session, *, offer_id: int, limit: int = 5) -> list[ProductCard]:
+    release_expired_reservations(db)
     products = db.scalars(
         select(ProductPool)
         .where(
@@ -162,6 +166,7 @@ def list_product_cards(db: Session, *, offer_id: int, limit: int = 5) -> list[Pr
 
 
 def get_product_card(db: Session, *, offer_id: int, product_id: int) -> ProductCard | None:
+    release_expired_reservations(db)
     found_product_id = db.scalar(
         select(ProductPool.id).where(
             ProductPool.id == product_id,

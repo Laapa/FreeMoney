@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.activity_log import ActivityLog
 from app.models.enums import Currency, LogEventType, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
+from app.services.fees import FeeBreakdown
 from app.services.top_up_statuses import TopUpRequestTransitionError, ensure_top_up_status_transition
 from app.services.fees import calculate_external_fee
 
@@ -25,7 +26,16 @@ def create_top_up_request(
     external_reference: str | None = None,
 ) -> TopUpRequest:
     initial_status = TopUpStatus.WAITING_TXID if method == TopUpMethod.CRYPTO_TXID else TopUpStatus.PENDING
-    fee = calculate_external_fee(amount)
+    fee = (
+        FeeBreakdown(
+            net_amount=amount,
+            fee_amount=Decimal("0.00"),
+            gross_amount=amount,
+            fee_percent=Decimal("0.00"),
+        )
+        if method == TopUpMethod.BYBIT_UID
+        else calculate_external_fee(amount)
+    )
     request = TopUpRequest(
         user_id=user_id,
         method=method,

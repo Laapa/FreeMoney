@@ -133,6 +133,8 @@ def _parse_internal_deposit_record(raw: dict[str, Any]) -> BybitInternalDepositR
     amount = Decimal(str(raw.get("amount") or "0"))
     created_raw = raw.get("createdTime") or raw.get("createTime") or 0
     created_ms = int(str(created_raw)) if str(created_raw).isdigit() else 0
+    if created_ms and created_ms < 10**11:
+        created_ms *= 1000
     return BybitInternalDepositRecord(
         tx_id=str(raw.get("txID") or raw.get("txId") or raw.get("transferId") or "") or None,
         amount=amount,

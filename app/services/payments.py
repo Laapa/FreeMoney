@@ -8,11 +8,11 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.enums import OrderStatus, PaymentMethod, PaymentStatus
+from app.models.enums import OrderStatus, PaymentMethod, PaymentStatus, ReservationStatus
 from app.models.order import Order
 from app.models.payment import Payment
 from app.services.crypto_pay import CryptoPayClient, CryptoPayClientError
-from app.services.purchase import apply_payment_status
+from app.services.purchase import apply_payment_status, release_expired_reservations
 from app.services.fees import calculate_external_fee
 from app.activation.client import ActivationAPIClient
 
@@ -42,6 +42,14 @@ def create_order_payment(
     ttl_minutes: int = 30,
     crypto_pay_client: CryptoPayClient | None = None,
 ) -> PaymentCreateResult:
+    if order.reservation_id is not None:
+        release_expired_reservations(db, now=now)
+        db.refresh(order)
+        if order.status != OrderStatus.PENDING:
+            return PaymentCreateResult(ok=False, reason=f"order_not_payable:{order.status.value}", payment=order.payment)
+        if order.reservation is None or order.reservation.status != ReservationStatus.ACTIVE:
+            return PaymentCreateResult(ok=False, reason="reservation_not_active", payment=order.payment)
+
     if order.status != OrderStatus.PENDING:
         return PaymentCreateResult(ok=False, reason=f"order_not_payable:{order.status.value}", payment=order.payment)
 
@@ -115,6 +123,14 @@ def check_order_payment(
     crypto_pay_client: CryptoPayClient | None = None,
     activation_client: ActivationAPIClient | None = None,
 ) -> PaymentCheckResult:
+    if order.reservation_id is not None:
+        release_expired_reservations(db, now=now)
+        db.refresh(order)
+        if order.status != OrderStatus.PENDING:
+            return PaymentCheckResult(ok=False, reason=f"order_not_payable:{order.status.value}", payment=order.payment)
+        if order.reservation is None or order.reservation.status != ReservationStatus.ACTIVE:
+            return PaymentCheckResult(ok=False, reason="reservation_not_active", payment=order.payment)
+
     payment = order.payment
     if payment is None:
         return PaymentCheckResult(ok=False, reason="payment_not_found")

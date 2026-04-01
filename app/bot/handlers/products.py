@@ -179,13 +179,23 @@ async def on_buy(callback: CallbackQuery) -> None:
             order_id = attempt.order.id
             order_price = attempt.order.price
 
-    await callback.message.edit_text(
-        t("products_reservation_success", user.language).format(
+    if offer.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+        success_text = t("products_reservation_success", user.language).format(
             title=offer.title,
             reservation_id=reservation_id,
             order_id=order_id,
             price=order_price,
-        ),
+            ttl_minutes=get_settings().product_reservation_ttl_minutes,
+        )
+    else:
+        success_text = t("products_order_created_success", user.language).format(
+            title=offer.title,
+            order_id=order_id,
+            price=order_price,
+        )
+
+    await callback.message.edit_text(
+        success_text,
         reply_markup=reservation_success_keyboard(category_id=offer.category_id, language=user.language),
     )
     await callback.answer(t("products_reserved_toast", user.language))

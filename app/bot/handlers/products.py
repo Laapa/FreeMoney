@@ -185,6 +185,7 @@ async def on_buy(callback: CallbackQuery) -> None:
             reservation_id=reservation_id,
             order_id=order_id,
             price=order_price,
+            ttl_minutes=get_settings().product_reservation_ttl_minutes,
         ),
         reply_markup=reservation_success_keyboard(category_id=offer.category_id, language=user.language),
     )

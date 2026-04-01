@@ -4,14 +4,14 @@ from decimal import Decimal
 
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import selectinload
 
 from app.models.enums import OrderStatus, PaymentMethod, PaymentStatus, ReservationStatus
 from app.models.order import Order
 from app.models.payment import Payment
 from app.models.reservation import Reservation
 from app.models.user import User
-from app.services.purchase import apply_payment_status
+from app.services.purchase import apply_payment_status, release_expired_reservations
 
 
 @dataclass(frozen=True)
@@ -84,6 +84,10 @@ def pay_pending_order_from_balance(db: Session, *, user_id: int, order_id: int, 
         return OrderPaymentResult(ok=False, reason="order_not_payable", order=order)
 
     if order.reservation_id is not None:
+        release_expired_reservations(db, now=now)
+        db.refresh(order)
+        if order.status != OrderStatus.PENDING:
+            return OrderPaymentResult(ok=False, reason="order_not_payable", order=order)
         reservation = db.get(Reservation, order.reservation_id)
         if reservation is None or reservation.status != ReservationStatus.ACTIVE:
             return OrderPaymentResult(ok=False, reason="reservation_not_active", order=order)

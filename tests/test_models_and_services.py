@@ -10,6 +10,7 @@ from app.models.enums import FulfillmentType, OrderStatus, PaymentMethod, Paymen
 from app.models.offer import Offer
 from app.models.payment import Payment
 from app.models.user import User
+from app.core.config import get_settings
 from app.services.orders import pay_pending_order_from_balance
 from app.services.purchase import apply_payment_status, release_expired_reservations, reserve_product_for_user
 from app.services.admin import add_direct_stock_payload
@@ -82,3 +83,23 @@ def test_release_expired_reservation_returns_stock() -> None:
     assert released == 1
     assert attempt.order.status == OrderStatus.CANCELED
     assert attempt.order.product.status == ProductStatus.AVAILABLE
+
+
+def test_reserve_uses_default_ttl_from_settings(monkeypatch) -> None:
+    monkeypatch.setenv("PRODUCT_RESERVATION_TTL_MINUTES", "5")
+    get_settings.cache_clear()
+    db = make_session()
+    user, offer = _seed_direct_offer(db)
+    now = datetime.utcnow()
+
+    attempt = reserve_product_for_user(
+        db,
+        user_id=user.id,
+        offer_id=offer.id,
+        price=Decimal("10.00"),
+        now=now,
+    )
+
+    assert attempt.ok is True
+    assert attempt.reservation is not None
+    assert attempt.reservation.reserved_until == now + timedelta(minutes=5)

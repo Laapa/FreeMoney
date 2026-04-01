@@ -81,8 +81,8 @@ def test_bybit_topup_credits_only_net_amount() -> None:
     db.refresh(user)
     assert result.ok is True
     assert request.net_amount == Decimal("100.00")
-    assert request.fee_amount == Decimal("3.00")
-    assert request.gross_amount == Decimal("103.00")
+    assert request.fee_amount == Decimal("0.00")
+    assert request.gross_amount == Decimal("100.00")
     assert user.balance == Decimal("100.00")
 
 

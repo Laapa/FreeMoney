@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     cryptopay_invoice_expires_in: int = Field(default=1800, alias="CRYPTOPAY_INVOICE_EXPIRES_IN")
 
     transaction_fee_percent: Decimal = Field(default=Decimal("3.00"), alias="TRANSACTION_FEE_PERCENT")
+    product_reservation_ttl_minutes: int = Field(default=5, alias="PRODUCT_RESERVATION_TTL_MINUTES")
 
     bybit_enabled: bool = Field(default=False, alias="BYBIT_ENABLED")
     bybit_payments_enabled: bool = Field(default=False, alias="BYBIT_PAYMENTS_ENABLED")

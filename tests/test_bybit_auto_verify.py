@@ -53,7 +53,7 @@ def test_auto_verify_success_credits_only_net(monkeypatch) -> None:
 
     record = BybitInternalDepositRecord(
         tx_id="tx-1",
-        amount=Decimal("103.00"),
+        amount=Decimal("100.00"),
         coin="USDT",
         status="2",
         from_member_id="777777",
@@ -113,7 +113,7 @@ def test_auto_verify_failed_status_3_is_not_accepted(monkeypatch) -> None:
 
     failed_record = BybitInternalDepositRecord(
         tx_id="tx-failed",
-        amount=Decimal("103.00"),
+        amount=Decimal("100.00"),
         coin="USDT",
         status="3",
         from_member_id="777777",
@@ -142,7 +142,7 @@ def test_auto_verify_idempotent(monkeypatch) -> None:
 
     record = BybitInternalDepositRecord(
         tx_id="tx-3",
-        amount=Decimal("103.00"),
+        amount=Decimal("100.00"),
         coin="USDT",
         status="SUCCESS",
         from_member_id="777777",

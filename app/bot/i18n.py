@@ -410,6 +410,26 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "UID/референс сохранен: {reference}. Запущена автоматическая проверка платежа.",
         Language.EN: "UID/reference saved: {reference}. Automatic payment verification has started.",
     },
+    "top_up_bybit_retry_button": {
+        Language.RU: "🔄 Проверить снова #{id}",
+        Language.EN: "🔄 Check again #{id}",
+    },
+    "top_up_bybit_retry_not_available": {
+        Language.RU: "Повторная Bybit авто-проверка доступна только для Bybit-заявок в статусе «На проверке».",
+        Language.EN: "Bybit retry is available only for Bybit requests under verification.",
+    },
+    "top_up_bybit_retry_verified": {
+        Language.RU: "Повторная авто-проверка успешна ✅ Заявка #{id} подтверждена, зачислено {amount} {currency}.",
+        Language.EN: "Retry auto-verification succeeded ✅ Request #{id} verified, credited {amount} {currency}.",
+    },
+    "top_up_bybit_retry_pending": {
+        Language.RU: "Авто-проверка выполнена, но платеж пока не найден. Заявка #{id} остается на проверке.",
+        Language.EN: "Auto-verification was performed, but payment is still not found. Request #{id} remains under verification.",
+    },
+    "top_up_bybit_retry_unavailable": {
+        Language.RU: "Bybit авто-проверка сейчас недоступна. Попробуйте позже.",
+        Language.EN: "Bybit auto-verification is currently unavailable. Please try again later.",
+    },
     "rules_placeholder": {
         Language.RU: "Правила WEBSTER-SHOP будут опубликованы здесь.",
         Language.EN: "WEBSTER-SHOP rules will be published here.",

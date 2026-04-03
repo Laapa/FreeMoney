@@ -5,9 +5,11 @@ from app.bot.handlers.top_up import (
     _build_bybit_submit_result_text,
     _format_bybit_transfer_instructions,
     _format_top_up_request_details,
+    _is_bybit_retry_allowed,
     _is_bybit_auto_verify_ready,
     _is_bybit_available,
     _parse_bybit_sender_reference,
+    _parse_retry_request_id,
 )
 from app.models.enums import Currency, Language, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
@@ -185,3 +187,28 @@ def test_bybit_submit_message_pending_has_no_success_text() -> None:
     assert "Automatic payment verification has started." in message
     assert "sent for review" in message
     assert "verified automatically" not in message
+
+
+def test_parse_retry_request_id_supports_retry_button_text() -> None:
+    assert _parse_retry_request_id("🔄 Проверить снова #12") == 12
+    assert _parse_retry_request_id("🔄 Check again #44") == 44
+    assert _parse_retry_request_id("#9") == 9
+
+
+def test_bybit_retry_allowed_only_for_pending_auto_waiting_status() -> None:
+    base = TopUpRequest(
+        id=50,
+        user_id=1,
+        method=TopUpMethod.BYBIT_UID,
+        amount=Decimal("100.00"),
+        net_amount=Decimal("100.00"),
+        fee_amount=Decimal("0.00"),
+        gross_amount=Decimal("100.00"),
+        currency=Currency.USD,
+        status=TopUpStatus.WAITING_VERIFICATION,
+        verification_source="pending_auto_bybit",
+    )
+    assert _is_bybit_retry_allowed(base) is True
+
+    base.verification_source = "auto_bybit"
+    assert _is_bybit_retry_allowed(base) is False

@@ -14,6 +14,7 @@ from app.bot.keyboards.top_up import (
     TOP_UP_MY_REQUESTS,
     top_up_cancel_keyboard,
     top_up_main_keyboard,
+    top_up_main_keyboard_for_request,
 )
 from app.core.config import get_settings
 from app.db.session import SessionLocal
@@ -129,7 +130,66 @@ async def top_up_request_details(message: Message, state: FSMContext) -> None:
         return
 
     await state.set_state(TopUpStates.choosing_method)
-    await message.answer(_format_top_up_request_details(request, user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
+    await message.answer(
+        _format_top_up_request_details(request, user.language),
+        reply_markup=top_up_main_keyboard_for_request(
+            user.language,
+            show_bybit=_is_bybit_available(),
+            bybit_retry_request_id=request.id if _is_bybit_retry_allowed(request) else None,
+        ),
+    )
+
+
+@router.message(TopUpStates.choosing_method, F.text.regexp(r"^🔄.+#?\d+.*$"))
+async def top_up_retry_bybit_auto_verify(message: Message, state: FSMContext) -> None:
+    if message.from_user is None or not message.text:
+        return
+    user = _resolve_or_create_user(message.from_user)
+    request_id = _parse_retry_request_id(message.text)
+    if request_id is None:
+        return
+
+    auto_verified = False
+    auto_attempted = False
+    request: TopUpRequest | None = None
+    with SessionLocal() as db:
+        request = get_top_up_request(db, request_id=request_id, user_id=user.id)
+        if request is None or not _is_bybit_retry_allowed(request):
+            await message.answer(
+                t("top_up_bybit_retry_not_available", user.language),
+                reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()),
+            )
+            return
+        if _is_bybit_auto_verify_ready():
+            auto_attempted = True
+            auto_result = try_auto_verify_bybit_top_up(db, request_id=request.id)
+            request = get_top_up_request(db, request_id=request.id, user_id=user.id)
+            auto_verified = bool(auto_result.ok and request is not None and request.status == TopUpStatus.VERIFIED)
+
+    if request is None:
+        await message.answer(t("top_up_request_not_found", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
+        return
+
+    if auto_verified:
+        text = t("top_up_bybit_retry_verified", user.language).format(
+            id=request.id,
+            amount=request.net_amount,
+            currency=_top_up_display_currency(request),
+        )
+    elif auto_attempted:
+        text = t("top_up_bybit_retry_pending", user.language).format(id=request.id)
+    else:
+        text = t("top_up_bybit_retry_unavailable", user.language)
+
+    await state.set_state(TopUpStates.choosing_method)
+    await message.answer(
+        text + "\n\n" + _format_top_up_request_details(request, user.language),
+        reply_markup=top_up_main_keyboard_for_request(
+            user.language,
+            show_bybit=_is_bybit_available(),
+            bybit_retry_request_id=request.id if _is_bybit_retry_allowed(request) else None,
+        ),
+    )
 
 
 @router.message(TopUpStates.choosing_method, F.text.in_({t(TOP_UP_METHOD_CRYPTO, Language.RU), t(TOP_UP_METHOD_CRYPTO, Language.EN)}))
@@ -274,23 +334,33 @@ async def top_up_bybit_sender_reference(message: Message, state: FSMContext) -> 
     submitted_reference = sender_uid or external_reference or t("top_up_not_provided", user.language)
     auto_verified = False
     auto_attempted = False
+    request_for_reply = request
     with SessionLocal() as db:
         latest = get_top_up_request(db, request_id=request.id, user_id=user.id)
         if latest is not None and _is_bybit_auto_verify_ready():
             auto_attempted = True
             auto_result = try_auto_verify_bybit_top_up(db, request_id=latest.id)
             latest = get_top_up_request(db, request_id=latest.id, user_id=user.id)
+            if latest is not None:
+                request_for_reply = latest
             if auto_result.ok and latest is not None and latest.status == TopUpStatus.VERIFIED:
                 auto_verified = True
 
     reply_text = _build_bybit_submit_result_text(
         language=user.language,
-        request=request,
+        request=request_for_reply,
         submitted_reference=submitted_reference,
         auto_verified=auto_verified,
         auto_attempted=auto_attempted,
     )
-    await message.answer(reply_text, reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
+    await message.answer(
+        reply_text,
+        reply_markup=top_up_main_keyboard_for_request(
+            user.language,
+            show_bybit=_is_bybit_available(),
+            bybit_retry_request_id=request_for_reply.id if _is_bybit_retry_allowed(request_for_reply) else None,
+        ),
+    )
     await state.set_state(TopUpStates.choosing_method)
 
 
@@ -409,6 +479,13 @@ def _parse_top_up_request_id(raw_text: str) -> int | None:
     return int(normalized)
 
 
+def _parse_retry_request_id(raw_text: str) -> int | None:
+    normalized = raw_text.strip().lower()
+    normalized = normalized.replace("🔄", "").replace("проверить снова", "").replace("обновить статус", "")
+    normalized = normalized.replace("check again", "").replace("retry", "").replace("refresh", "").replace("проверить", "").replace("обновить", "")
+    return _parse_top_up_request_id(normalized.strip())
+
+
 def _parse_bybit_sender_reference(raw_value: str) -> tuple[str | None, str | None]:
     value = raw_value.strip()
     if not value:
@@ -427,6 +504,14 @@ def _top_up_display_currency(request: TopUpRequest) -> str:
     if request.method == TopUpMethod.BYBIT_UID:
         return _bybit_display_coin()
     return request.currency.value
+
+
+def _is_bybit_retry_allowed(request: TopUpRequest) -> bool:
+    return (
+        request.method == TopUpMethod.BYBIT_UID
+        and request.status == TopUpStatus.WAITING_VERIFICATION
+        and (request.verification_source or "").startswith("pending_auto_bybit")
+    )
 
 
 def _bybit_display_coin() -> str:

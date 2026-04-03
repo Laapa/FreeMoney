@@ -182,7 +182,12 @@ def set_bybit_sender_reference(
 
     db.commit()
     db.refresh(request)
-    logger.info("Bybit top-up moved to waiting verification | request_id=%s sender_uid=%s", request.id, bool(request.sender_uid))
+    logger.info(
+        "Bybit top-up moved to waiting verification | request_id=%s sender_uid=%s external_reference=%s",
+        request.id,
+        request.sender_uid,
+        request.external_reference,
+    )
     return request
 
 

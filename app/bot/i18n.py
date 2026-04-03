@@ -410,6 +410,30 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "UID/референс сохранен: {reference}. Запущена автоматическая проверка платежа.",
         Language.EN: "UID/reference saved: {reference}. Automatic payment verification has started.",
     },
+    "top_up_bybit_retry_button": {
+        Language.RU: "🔄 Проверить снова",
+        Language.EN: "🔄 Check again",
+    },
+    "top_up_bybit_retry_hint": {
+        Language.RU: "Если перевод не найден сразу, нажмите кнопку «🔄 Проверить снова».",
+        Language.EN: "If transfer is not found immediately, tap “🔄 Check again”.",
+    },
+    "top_up_bybit_retry_unavailable": {
+        Language.RU: "Повторная авто-проверка сейчас недоступна для этой заявки.",
+        Language.EN: "Auto-verify retry is currently unavailable for this request.",
+    },
+    "top_up_bybit_auto_retry_not_ready": {
+        Language.RU: "Повторная авто-проверка временно недоступна. Попробуйте позже.",
+        Language.EN: "Auto-verify retry is temporarily unavailable. Please try again later.",
+    },
+    "top_up_bybit_retry_verified": {
+        Language.RU: "Повторная авто-проверка успешна ✅\nЗаявка #{id} подтверждена. Зачислено: {amount} {currency}\nСтатус: {status}",
+        Language.EN: "Retry auto-verify succeeded ✅\nRequest #{id} is verified. Credited: {amount} {currency}\nStatus: {status}",
+    },
+    "top_up_bybit_retry_not_found": {
+        Language.RU: "Повторная авто-проверка выполнена.\nПлатеж для заявки #{id} пока не найден.\nТекущий статус: {status}.",
+        Language.EN: "Retry auto-verify completed.\nPayment for request #{id} is not found yet.\nCurrent status: {status}.",
+    },
     "rules_placeholder": {
         Language.RU: "Правила WEBSTER-SHOP будут опубликованы здесь.",
         Language.EN: "WEBSTER-SHOP rules will be published here.",

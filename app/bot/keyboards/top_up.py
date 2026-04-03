@@ -7,6 +7,7 @@ TOP_UP_METHOD_CRYPTO = "top_up_method_crypto"
 TOP_UP_METHOD_BYBIT = "top_up_method_bybit"
 TOP_UP_MY_REQUESTS = "top_up_my_requests"
 TOP_UP_CANCEL = "top_up_cancel"
+TOP_UP_BYBIT_RETRY = "top_up_bybit_retry_button"
 
 
 def top_up_main_keyboard(language: Language, *, show_bybit: bool = True) -> ReplyKeyboardMarkup:
@@ -21,6 +22,19 @@ def top_up_main_keyboard(language: Language, *, show_bybit: bool = True) -> Repl
         ],
         resize_keyboard=True,
     )
+
+
+def top_up_request_keyboard(language: Language, *, retry_request_id: int | None = None, show_bybit: bool = True) -> ReplyKeyboardMarkup:
+    rows: list[list[KeyboardButton]] = []
+    if retry_request_id is not None:
+        rows.append([KeyboardButton(text=f"{t(TOP_UP_BYBIT_RETRY, language)} #{retry_request_id}")])
+    method_row = [KeyboardButton(text=t(TOP_UP_METHOD_CRYPTO, language))]
+    if show_bybit:
+        method_row.append(KeyboardButton(text=t(TOP_UP_METHOD_BYBIT, language)))
+    rows.append(method_row)
+    rows.append([KeyboardButton(text=t(TOP_UP_MY_REQUESTS, language))])
+    rows.append([KeyboardButton(text=t("nav_back", language)), KeyboardButton(text=t("nav_main_menu", language))])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
 def top_up_cancel_keyboard(language: Language) -> ReplyKeyboardMarkup:

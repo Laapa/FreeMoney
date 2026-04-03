@@ -5,8 +5,10 @@ from app.bot.handlers.top_up import (
     _build_bybit_submit_result_text,
     _format_bybit_transfer_instructions,
     _format_top_up_request_details,
+    _is_retryable_bybit_request,
     _is_bybit_auto_verify_ready,
     _is_bybit_available,
+    _parse_bybit_retry_request_id,
     _parse_bybit_sender_reference,
 )
 from app.models.enums import Currency, Language, TopUpMethod, TopUpStatus
@@ -185,3 +187,28 @@ def test_bybit_submit_message_pending_has_no_success_text() -> None:
     assert "Automatic payment verification has started." in message
     assert "sent for review" in message
     assert "verified automatically" not in message
+
+
+def test_parse_bybit_retry_request_id_from_button_text() -> None:
+    assert _parse_bybit_retry_request_id("🔄 Check again #45") == 45
+    assert _parse_bybit_retry_request_id("🔄 Проверить снова #12") == 12
+    assert _parse_bybit_retry_request_id("🔄 Check again") is None
+
+
+def test_retryable_bybit_request_requires_pending_auto_source() -> None:
+    request = TopUpRequest(
+        id=47,
+        user_id=1,
+        method=TopUpMethod.BYBIT_UID,
+        amount=Decimal("20.00"),
+        net_amount=Decimal("20.00"),
+        fee_amount=Decimal("0.00"),
+        gross_amount=Decimal("20.00"),
+        currency=Currency.RUB,
+        status=TopUpStatus.WAITING_VERIFICATION,
+        verification_source="pending_auto_bybit",
+    )
+    assert _is_retryable_bybit_request(request) is True
+
+    request.verification_source = "auto_bybit"
+    assert _is_retryable_bybit_request(request) is False

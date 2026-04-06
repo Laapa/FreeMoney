@@ -65,7 +65,7 @@ def _offer_price(db: Session, *, user_id: int, offer: Offer) -> Decimal | None:
 def _direct_stock_map(db: Session) -> dict[int, int]:
     rows = db.execute(
         select(ProductPool.offer_id, func.count(ProductPool.id))
-        .where(ProductPool.status == ProductStatus.AVAILABLE)
+        .where(ProductPool.status == ProductStatus.AVAILABLE, ProductPool.removed_from_pool.is_(False))
         .group_by(ProductPool.offer_id)
     ).all()
     return {offer_id: int(stock_count) for offer_id, stock_count in rows}
@@ -158,6 +158,7 @@ def list_product_cards(db: Session, *, offer_id: int, limit: int = 5) -> list[Pr
         .where(
             ProductPool.offer_id == offer_id,
             ProductPool.status == ProductStatus.AVAILABLE,
+            ProductPool.removed_from_pool.is_(False),
         )
         .order_by(ProductPool.id)
         .limit(limit)
@@ -172,6 +173,7 @@ def get_product_card(db: Session, *, offer_id: int, product_id: int) -> ProductC
             ProductPool.id == product_id,
             ProductPool.offer_id == offer_id,
             ProductPool.status == ProductStatus.AVAILABLE,
+            ProductPool.removed_from_pool.is_(False),
         )
     )
     if found_product_id is None:

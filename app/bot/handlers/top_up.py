@@ -7,8 +7,11 @@ from aiogram.types import Message
 
 from app.bot.i18n import t
 from app.bot.keyboards.main_menu import main_menu_keyboard
+from app.bot.money import format_money
+from app.bot.state_utils import clear_admin_state
 from app.bot.keyboards.top_up import (
     TOP_UP_CANCEL,
+    TOP_UP_CONTACT_ADMIN,
     TOP_UP_METHOD_BYBIT,
     TOP_UP_METHOD_CRYPTO,
     TOP_UP_MY_REQUESTS,
@@ -49,7 +52,7 @@ def _resolve_or_create_user(tg_user) -> User:
 async def _show_top_up_main(message: Message, *, user: User, state: FSMContext) -> None:
     await state.set_state(TopUpStates.choosing_method)
     await message.answer(
-        t("top_up_main", user.language).format(balance=user.balance, currency=user.currency.value),
+        t("top_up_main", user.language).format(balance=format_money(user.balance)),
         reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()),
     )
 
@@ -59,6 +62,7 @@ async def top_up_entry(message: Message, state: FSMContext) -> None:
     if message.from_user is None:
         return
     user = _resolve_or_create_user(message.from_user)
+    await clear_admin_state(state)
     await _show_top_up_main(message, user=user, state=state)
 
 
@@ -98,7 +102,7 @@ async def top_up_show_requests(message: Message, state: FSMContext) -> None:
     lines = [t("top_up_status_list_title", user.language)]
     for request in requests:
         lines.append(
-            f"#{request.id} • net={request.net_amount} / gross={request.gross_amount} {_top_up_display_currency(request)} • {_status_text(request, user.language)}"
+            f"#{request.id} • net={format_money(request.net_amount)} / gross={format_money(request.gross_amount)} • {_status_text(request, user.language)}"
         )
     lines.append("")
     lines.append(t("top_up_open_request_hint", user.language))
@@ -140,7 +144,7 @@ async def top_up_request_details(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(TopUpStates.choosing_method, F.text.regexp(r"^🔄.+#?\d+.*$"))
+@router.message(TopUpStates.choosing_method, F.text.regexp(r"^.+#?\d+.*$"))
 async def top_up_retry_bybit_auto_verify(message: Message, state: FSMContext) -> None:
     if message.from_user is None or not message.text:
         return
@@ -173,8 +177,7 @@ async def top_up_retry_bybit_auto_verify(message: Message, state: FSMContext) ->
     if auto_verified:
         text = t("top_up_bybit_retry_verified", user.language).format(
             id=request.id,
-            amount=request.net_amount,
-            currency=_top_up_display_currency(request),
+            amount=format_money(request.net_amount),
         )
     elif auto_attempted:
         text = t("top_up_bybit_retry_pending", user.language).format(id=request.id)
@@ -201,6 +204,29 @@ async def top_up_crypto_intro(message: Message, state: FSMContext) -> None:
     await message.answer(t("top_up_crypto_intro", user.language), reply_markup=top_up_cancel_keyboard(user.language))
 
 
+@router.message(
+    TopUpStates.choosing_method,
+    F.text.in_({t(TOP_UP_CONTACT_ADMIN, Language.RU), t(TOP_UP_CONTACT_ADMIN, Language.EN)}),
+)
+async def top_up_contact_admin(message: Message, state: FSMContext) -> None:
+    if message.from_user is None:
+        return
+    user = _resolve_or_create_user(message.from_user)
+    notice = t("top_up_manual_contact_notice", user.language).format(
+        telegram_id=user.telegram_id,
+        username=f"@{user.username}" if user.username else "-",
+        language=user.language.value,
+        balance=format_money(user.balance),
+    )
+    for admin_id in get_settings().admin_telegram_ids:
+        try:
+            await message.bot.send_message(chat_id=admin_id, text=notice)
+        except Exception:
+            continue
+    await message.answer(t("top_up_manual_contact_sent", user.language), reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available()))
+    await state.set_state(TopUpStates.choosing_method)
+
+
 @router.message(TopUpStates.crypto_amount)
 async def top_up_crypto_amount(message: Message, state: FSMContext) -> None:
     if message.from_user is None or not message.text:
@@ -224,10 +250,9 @@ async def top_up_crypto_amount(message: Message, state: FSMContext) -> None:
     summary = t("top_up_request_summary", user.language).format(
         id=request.id,
         method=t("top_up_method_crypto", user.language),
-        amount=request.net_amount,
-        fee_amount=request.fee_amount,
-        gross_amount=request.gross_amount,
-        currency=request.currency.value,
+        amount=format_money(request.net_amount),
+        fee_amount=format_money(request.fee_amount),
+        gross_amount=format_money(request.gross_amount),
         status=_status_text(request, user.language),
         note=request.provider_payment_url or request.provider_invoice_url or t("top_up_not_provided", user.language),
     )
@@ -278,10 +303,9 @@ async def top_up_bybit_amount(message: Message, state: FSMContext) -> None:
         t("top_up_request_summary", user.language).format(
             id=request.id,
             method=t("top_up_method_bybit", user.language),
-            amount=request.net_amount,
-            fee_amount=request.fee_amount,
-            gross_amount=request.gross_amount,
-            currency=_top_up_display_currency(request),
+            amount=format_money(request.net_amount),
+            fee_amount=format_money(request.fee_amount),
+            gross_amount=format_money(request.gross_amount),
             status=_status_text(request, user.language),
             note=t("top_up_not_provided", user.language),
         )
@@ -384,8 +408,7 @@ def _format_bybit_transfer_instructions(*, request: TopUpRequest, language: Lang
     recipient_uid = (settings.bybit_recipient_uid or "").strip() or t("top_up_not_provided", language)
     recipient_note = (settings.bybit_recipient_note or "").strip() or t("top_up_not_provided", language)
     return t("top_up_bybit_transfer_instruction", language).format(
-        gross_amount=request.gross_amount,
-        currency=_top_up_display_currency(request),
+        gross_amount=format_money(request.gross_amount),
         recipient_uid=recipient_uid,
         recipient_note=recipient_note,
     ) + "\n\n" + t("top_up_bybit_reference_prompt", language)
@@ -403,8 +426,7 @@ def _build_bybit_submit_result_text(
     if auto_verified:
         return submitted + "\n\n" + t("top_up_bybit_auto_verified", language).format(
             id=request.id,
-            amount=request.net_amount,
-            currency=_top_up_display_currency(request),
+            amount=format_money(request.net_amount),
         )
     waiting = t("top_up_waiting_verification", language).format(id=request.id, status=_status_text(request, language))
     if auto_attempted:
@@ -446,10 +468,9 @@ def _format_top_up_request_details(request: TopUpRequest, language: Language) ->
     return t("top_up_request_details", language).format(
         id=request.id,
         method=t(method_key, language),
-        amount=request.net_amount,
-        fee_amount=request.fee_amount,
-        gross_amount=request.gross_amount,
-        currency=_top_up_display_currency(request),
+        amount=format_money(request.net_amount),
+        fee_amount=format_money(request.fee_amount),
+        gross_amount=format_money(request.gross_amount),
         status=_status_text(request, language),
         txid=txid_value,
         sender_uid=sender_uid_value,
@@ -481,7 +502,7 @@ def _parse_top_up_request_id(raw_text: str) -> int | None:
 
 def _parse_retry_request_id(raw_text: str) -> int | None:
     normalized = raw_text.strip().lower()
-    normalized = normalized.replace("🔄", "").replace("проверить снова", "").replace("обновить статус", "")
+    normalized = normalized.replace("проверить снова", "").replace("обновить статус", "")
     normalized = normalized.replace("check again", "").replace("retry", "").replace("refresh", "").replace("проверить", "").replace("обновить", "")
     return _parse_top_up_request_id(normalized.strip())
 
@@ -501,9 +522,7 @@ def _parse_bybit_sender_reference(raw_value: str) -> tuple[str | None, str | Non
 
 
 def _top_up_display_currency(request: TopUpRequest) -> str:
-    if request.method == TopUpMethod.BYBIT_UID:
-        return _bybit_display_coin()
-    return request.currency.value
+    return "$"
 
 
 def _is_bybit_retry_allowed(request: TopUpRequest) -> bool:

@@ -3,6 +3,8 @@ from aiogram.types import CallbackQuery, Message
 
 from app.bot.i18n import t
 from app.bot.keyboards.main_menu import main_menu_keyboard
+from app.bot.money import format_money
+from app.bot.state_utils import clear_admin_state
 from app.bot.keyboards.products import (
     CALLBACK_MENU,
     CALLBACK_ROOT,
@@ -47,10 +49,12 @@ async def _resolve_user(message: Message):
         return user
 
 
-async def show_root_categories(message: Message) -> None:
+async def show_root_categories(message: Message, state=None) -> None:
     user = await _resolve_user(message)
     if user is None:
         return
+    if state is not None:
+        await clear_admin_state(state)
     with SessionLocal() as db:
         categories = list_categories(db, language=user.language)
     if not categories:
@@ -124,7 +128,7 @@ async def on_offer(callback: CallbackQuery) -> None:
     await callback.message.edit_text(
         t("products_offer_view", user.language).format(
             title=offer.title,
-            price=str(offer.price) if offer.price is not None else t("products_price_missing", user.language),
+            price=format_money(offer.price) if offer.price is not None else t("products_price_missing", user.language),
             fulfillment=t(f"orders_fulfillment_{offer.fulfillment_type.value}", user.language),
             availability=_availability_label(offer, user.language),
             description=offer.description or "-",
@@ -184,14 +188,14 @@ async def on_buy(callback: CallbackQuery) -> None:
             title=offer.title,
             reservation_id=reservation_id,
             order_id=order_id,
-            price=order_price,
+            price=format_money(order_price),
             ttl_minutes=get_settings().product_reservation_ttl_minutes,
         )
     else:
         success_text = t("products_order_created_success", user.language).format(
             title=offer.title,
             order_id=order_id,
-            price=order_price,
+            price=format_money(order_price),
         )
 
     await callback.message.edit_text(

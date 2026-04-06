@@ -29,13 +29,13 @@ def buy_product_callback(offer_id: int, product_id: int) -> str:
 
 
 def categories_keyboard(categories: list[CategoryView], language: Language) -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(text=f"📁 {c.title}", callback_data=category_callback(c.id))] for c in categories]
+    rows = [[InlineKeyboardButton(text=c.title, callback_data=category_callback(c.id))] for c in categories]
     rows.append([InlineKeyboardButton(text=t("products_main_menu", language), callback_data=CALLBACK_MENU)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def offers_keyboard(*, offers: list[OfferView], category_id: int, language: Language) -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(text=f"🛍 {o.title}", callback_data=offer_callback(o.id))] for o in offers]
+    rows = [[InlineKeyboardButton(text=o.title, callback_data=offer_callback(o.id))] for o in offers]
     rows.append([
         InlineKeyboardButton(text=t("products_back", language), callback_data=CALLBACK_ROOT),
         InlineKeyboardButton(text=t("products_main_menu", language), callback_data=CALLBACK_MENU),

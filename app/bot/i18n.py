@@ -6,12 +6,12 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Welcome to WEBSTER-SHOP! Choose an action from the menu below.",
     },
     "language_prompt": {
-        Language.RU: "🌐 Выберите язык / Choose your language",
-        Language.EN: "🌐 Choose your language / Выберите язык",
+        Language.RU: "Выберите язык / Choose your language",
+        Language.EN: "Choose your language / Выберите язык",
     },
     "language_saved": {
-        Language.RU: "Язык сохранен: Русский ✅",
-        Language.EN: "Language saved: English ✅",
+        Language.RU: "Язык сохранен: Русский",
+        Language.EN: "Language saved: English",
     },
     "language_option_ru": {Language.RU: "Русский", Language.EN: "Русский"},
     "language_option_en": {Language.RU: "English", Language.EN: "English"},
@@ -23,122 +23,122 @@ TEXTS: dict[str, dict[Language, str]] = {
     "menu_support": {Language.RU: "🛟 Поддержка", Language.EN: "🛟 Support"},
     "menu_admin": {Language.RU: "🛠 Админка", Language.EN: "🛠 Admin"},
     "profile_title": {Language.RU: "Ваш профиль", Language.EN: "Your profile"},
-    "profile_change_language": {Language.RU: "🌐 Сменить язык", Language.EN: "🌐 Change language"},
+    "profile_change_language": {Language.RU: "Сменить язык", Language.EN: "Change language"},
     "profile_body": {
         Language.RU: (
-            "🆔 Telegram ID: {id}\n"
-            "👤 Username: {username}\n"
-            "📅 Дата регистрации: {registered_at}\n"
-            "💰 Баланс: {balance} {currency}\n"
-            "🌐 Язык: {language}\n"
-            "📦 Всего заказов: {total_orders}\n"
-            "✅ Доставлено: {delivered_orders}\n"
-            "💸 Потрачено: {total_spent} {currency}"
+            "Telegram ID: {id}\n"
+            "Username: {username}\n"
+            "Дата регистрации: {registered_at}\n"
+            "Баланс: {balance}\n"
+            "Язык: {language}\n"
+            "Всего заказов: {total_orders}\n"
+            "Доставлено: {delivered_orders}\n"
+            "Потрачено: {total_spent}"
         ),
         Language.EN: (
-            "🆔 Telegram ID: {id}\n"
-            "👤 Username: {username}\n"
-            "📅 Registered: {registered_at}\n"
-            "💰 Balance: {balance} {currency}\n"
-            "🌐 Language: {language}\n"
-            "📦 Total orders: {total_orders}\n"
-            "✅ Delivered: {delivered_orders}\n"
-            "💸 Total spent: {total_spent} {currency}"
+            "Telegram ID: {id}\n"
+            "Username: {username}\n"
+            "Registered: {registered_at}\n"
+            "Balance: {balance}\n"
+            "Language: {language}\n"
+            "Total orders: {total_orders}\n"
+            "Delivered: {delivered_orders}\n"
+            "Total spent: {total_spent}"
         ),
     },
     "orders_empty": {Language.RU: "У вас пока нет заказов.", Language.EN: "You have no orders yet."},
     "orders_title": {
-        Language.RU: "📦 Ваши заказы (страница {page}/{pages})",
-        Language.EN: "📦 Your orders (page {page}/{pages})",
+        Language.RU: "Ваши заказы (страница {page}/{pages})",
+        Language.EN: "Your orders (page {page}/{pages})",
     },
     "orders_card": {
-        Language.RU: "Заказ #{id}\n📅 Создан: {created_at}\n📌 Статус: {status}\n💵 Цена: {price} {currency}",
-        Language.EN: "Order #{id}\n📅 Created: {created_at}\n📌 Status: {status}\n💵 Price: {price} {currency}",
+        Language.RU: "Заказ #{id}\nСоздан: {created_at}\nСтатус: {status}\nЦена: {price}",
+        Language.EN: "Order #{id}\nCreated: {created_at}\nStatus: {status}\nPrice: {price}",
     },
     "orders_open": {
-        Language.RU: "🔎 Заказ #{id}",
-        Language.EN: "🔎 Order #{id}",
+        Language.RU: "Заказ #{id}",
+        Language.EN: "Order #{id}",
     },
     "orders_not_found": {
         Language.RU: "Заказ не найден.",
         Language.EN: "Order not found.",
     },
     "orders_details_title": {
-        Language.RU: "📦 Детали заказа #{id}",
-        Language.EN: "📦 Order #{id} details",
+        Language.RU: "Детали заказа #{id}",
+        Language.EN: "Order #{id} details",
     },
     "orders_details_created": {
-        Language.RU: "📅 Создан: {created_at}",
-        Language.EN: "📅 Created: {created_at}",
+        Language.RU: "Создан: {created_at}",
+        Language.EN: "Created: {created_at}",
     },
     "orders_details_status": {
-        Language.RU: "📌 Статус: {status}",
-        Language.EN: "📌 Status: {status}",
+        Language.RU: "Статус: {status}",
+        Language.EN: "Status: {status}",
     },
     "orders_details_price": {
-        Language.RU: "💵 Цена: {price} {currency}",
-        Language.EN: "💵 Price: {price} {currency}",
+        Language.RU: "Цена: {price}",
+        Language.EN: "Price: {price}",
     },
     "orders_item_line": {
-        Language.RU: "🛍 Товар: {item}",
-        Language.EN: "🛍 Item: {item}",
+        Language.RU: "Товар: {item}",
+        Language.EN: "Item: {item}",
     },
     "orders_details_delivered_at": {
-        Language.RU: "✅ Доставлен: {delivered_at}",
-        Language.EN: "✅ Delivered: {delivered_at}",
+        Language.RU: "Доставлен: {delivered_at}",
+        Language.EN: "Delivered: {delivered_at}",
     },
     "orders_action_pay": {
-        Language.RU: "💸 Внешняя оплата",
-        Language.EN: "💸 External pay",
+        Language.RU: "Внешняя оплата",
+        Language.EN: "External pay",
     },
     "orders_action_pay_balance": {
-        Language.RU: "💰 Оплатить с баланса",
-        Language.EN: "💰 Pay with balance",
+        Language.RU: "Оплатить с баланса",
+        Language.EN: "Pay with balance",
     },
     "orders_action_top_up": {
-        Language.RU: "💳 Пополнить",
-        Language.EN: "💳 Top Up",
+        Language.RU: "Пополнить",
+        Language.EN: "Top Up",
     },
     "orders_payment_insufficient_balance": {
-        Language.RU: "Недостаточно средств для оплаты заказа.\nТекущий баланс: {balance} {currency}\nНажмите «💳 Пополнить», затем повторите оплату.",
-        Language.EN: "Insufficient balance for this order.\nCurrent balance: {balance} {currency}\nTap “💳 Top Up” and then retry payment.",
+        Language.RU: "Недостаточно средств для оплаты заказа.\nТекущий баланс: {balance}\nНажмите «Пополнить», затем повторите оплату.",
+        Language.EN: "Insufficient balance for this order.\nCurrent balance: {balance}\nTap “Top Up” and then retry payment.",
     },
     "orders_payment_not_available": {
         Language.RU: "Оплата недоступна для этого заказа.",
         Language.EN: "Payment is not available for this order.",
     },
     "orders_payment_success": {
-        Language.RU: "Оплата прошла успешно и товар доставлен ✅",
-        Language.EN: "Payment successful and product delivered ✅",
+        Language.RU: "Оплата прошла успешно и товар доставлен",
+        Language.EN: "Payment successful and product delivered",
     },
     "orders_payment_success_toast": {
         Language.RU: "Заказ оплачен",
         Language.EN: "Order paid",
     },
     "orders_delivery_message": {
-        Language.RU: "🔑 Ваш товар:\n{payload}",
-        Language.EN: "🔑 Your product:\n{payload}",
+        Language.RU: "Ваш товар:\n{payload}",
+        Language.EN: "Your product:\n{payload}",
     },
     "orders_payload": {
-        Language.RU: "🔑 Данные:\n{payload}",
-        Language.EN: "🔑 Payload:\n{payload}",
+        Language.RU: "Данные:\n{payload}",
+        Language.EN: "Payload:\n{payload}",
     },
     "orders_status_pending": {Language.RU: "Ожидает оплаты", Language.EN: "Pending"},
     "orders_status_paid": {Language.RU: "Оплачен", Language.EN: "Paid"},
     "orders_status_processing": {Language.RU: "В обработке", Language.EN: "Processing"},
     "orders_status_delivered": {Language.RU: "Доставлен", Language.EN: "Delivered"},
     "orders_status_canceled": {Language.RU: "Отменен", Language.EN: "Canceled"},
-    "orders_action_check_payment": {Language.RU: "🔄 Проверить оплату", Language.EN: "🔄 Check payment"},
-    "orders_action_open_payment": {Language.RU: "💳 Перейти к оплате", Language.EN: "💳 Proceed to payment"},
-    "orders_action_open_activation": {Language.RU: "🚀 Открыть активатор", Language.EN: "🚀 Open activation page"},
-    "orders_action_cancel_payment": {Language.RU: "❌ Отменить оплату", Language.EN: "❌ Cancel payment"},
+    "orders_action_check_payment": {Language.RU: "Проверить оплату", Language.EN: "Check payment"},
+    "orders_action_open_payment": {Language.RU: "Перейти к оплате", Language.EN: "Proceed to payment"},
+    "orders_action_open_activation": {Language.RU: "Открыть активатор", Language.EN: "Open activation page"},
+    "orders_action_cancel_payment": {Language.RU: "Отменить оплату", Language.EN: "Cancel payment"},
     "orders_payment_screen": {
-        Language.RU: "Оплата заказа #{id}\nТовар: {title}\nЦена товара (net): {amount} {currency}\nКомиссия: {fee_amount} {currency}\nК оплате (gross): {gross_amount} {currency}\nМетод: {method}\nСоздан: {created_at}\nОплатить до: {deadline}",
-        Language.EN: "Order #{id} payment\nItem: {title}\nItem price (net): {amount} {currency}\nFee: {fee_amount} {currency}\nTo pay (gross): {gross_amount} {currency}\nMethod: {method}\nCreated: {created_at}\nPay until: {deadline}",
+        Language.RU: "Оплата заказа #{id}\nТовар: {title}\nЦена товара (net): {amount}\nКомиссия: {fee_amount}\nК оплате (gross): {gross_amount}\nМетод: {method}\nСоздан: {created_at}\nОплатить до: {deadline}",
+        Language.EN: "Order #{id} payment\nItem: {title}\nItem price (net): {amount}\nFee: {fee_amount}\nTo pay (gross): {gross_amount}\nMethod: {method}\nCreated: {created_at}\nPay until: {deadline}",
     },
     "orders_bybit_via_balance_hint": {
-        Language.RU: "Bybit: пополните баланс через раздел «💳 Пополнить», затем оплатите заказ кнопкой «💰 Оплатить с баланса».",
-        Language.EN: "Bybit: top up balance in “💳 Top Up”, then pay order with “💰 Pay with balance”.",
+        Language.RU: "Bybit: пополните баланс через раздел «Пополнить», затем оплатите заказ кнопкой «Оплатить с баланса».",
+        Language.EN: "Bybit: top up balance in “Top Up”, then pay order with “Pay with balance”.",
     },
     "orders_payment_pending": {
         Language.RU: "Оплата еще не подтверждена.",
@@ -180,16 +180,16 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Choose a category:",
     },
     "products_open_list": {
-        Language.RU: "📋 Показать товары",
-        Language.EN: "📋 Show products",
+        Language.RU: "Показать товары",
+        Language.EN: "Show products",
     },
     "products_back": {Language.RU: "⬅️ Назад", Language.EN: "⬅️ Back"},
     "products_main_menu": {Language.RU: "🏠 Главное меню", Language.EN: "🏠 Main menu"},
     "products_back_to_category": {Language.RU: "⬅️ К категории", Language.EN: "⬅️ Category"},
     "products_back_to_products": {Language.RU: "⬅️ К товарам", Language.EN: "⬅️ Back to products"},
-    "products_buy": {Language.RU: "🛒 Купить", Language.EN: "🛒 Buy"},
-    "products_open_product": {Language.RU: "🔎 Открыть", Language.EN: "🔎 Open"},
-    "products_reserve_item": {Language.RU: "🛒 Резерв", Language.EN: "🛒 Reserve"},
+    "products_buy": {Language.RU: "Купить", Language.EN: "Buy"},
+    "products_open_product": {Language.RU: "Открыть", Language.EN: "Open"},
+    "products_reserve_item": {Language.RU: "Резерв", Language.EN: "Reserve"},
     "products_category_not_found": {
         Language.RU: "Категория не найдена.",
         Language.EN: "Category not found.",
@@ -250,7 +250,7 @@ TEXTS: dict[str, dict[Language, str]] = {
     },
     "products_reservation_success": {
         Language.RU: (
-            "Резерв создан ✅\n"
+            "Резерв создан\n"
             "Категория: {title}\n"
             "Reservation ID: {reservation_id}\n"
             "Order ID: {order_id}\n"
@@ -259,7 +259,7 @@ TEXTS: dict[str, dict[Language, str]] = {
             "Откройте раздел заказов и оплатите резерв в течение {ttl_minutes} минут."
         ),
         Language.EN: (
-            "Reservation created ✅\n"
+            "Reservation created\n"
             "Category: {title}\n"
             "Reservation ID: {reservation_id}\n"
             "Order ID: {order_id}\n"
@@ -270,14 +270,14 @@ TEXTS: dict[str, dict[Language, str]] = {
     },
     "products_order_created_success": {
         Language.RU: (
-            "Заказ создан ✅\n"
+            "Заказ создан\n"
             "Категория: {title}\n"
             "Order ID: {order_id}\n"
             "Цена: {price}\n\n"
             "Откройте раздел заказов и оплатите заказ."
         ),
         Language.EN: (
-            "Order created ✅\n"
+            "Order created\n"
             "Category: {title}\n"
             "Order ID: {order_id}\n"
             "Price: {price}\n\n"
@@ -289,11 +289,11 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Product reserved",
     },
     "top_up_main": {
-        Language.RU: "💳 Пополнение\n\nТекущий баланс: {balance} {currency}\nВыберите действие:",
-        Language.EN: "💳 Top Up\n\nCurrent balance: {balance} {currency}\nChoose an action:",
+        Language.RU: "Пополнение\n\nТекущий баланс: {balance}\nВыберите действие:",
+        Language.EN: "Top Up\n\nCurrent balance: {balance}\nChoose an action:",
     },
 
-    "top_up_my_requests": {Language.RU: "📄 Мои заявки", Language.EN: "📄 My requests"},
+    "top_up_my_requests": {Language.RU: "Мои заявки", Language.EN: "My requests"},
     "top_up_no_requests": {
         Language.RU: "У вас пока нет заявок на пополнение.",
         Language.EN: "You do not have top-up requests yet.",
@@ -307,8 +307,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Send a request ID (for example, #12) to view details.",
     },
     "top_up_request_details": {
-        Language.RU: "Детали заявки #{id}\nМетод: {method}\nК зачислению (net): {amount} {currency}\nКомиссия: {fee_amount} {currency}\nК оплате (gross): {gross_amount} {currency}\nСтатус: {status}\nTXID: {txid}\nUID отправителя: {sender_uid}\nВнешняя ссылка/референс: {external_reference}\nПроверенная сеть: {verified_network}\nПроверенный токен: {verified_token}\nПроверенная сумма: {verified_amount}\nКошелек получателя: {verified_recipient}\nСоздана: {created_at}\nПроверена: {reviewed_at}\nПримечание проверки: {verification_note}",
-        Language.EN: "Request #{id} details\nMethod: {method}\nTo credit (net): {amount} {currency}\nFee: {fee_amount} {currency}\nTo pay (gross): {gross_amount} {currency}\nStatus: {status}\nTXID: {txid}\nSender UID: {sender_uid}\nExternal reference: {external_reference}\nVerified network: {verified_network}\nVerified token: {verified_token}\nVerified amount: {verified_amount}\nRecipient wallet: {verified_recipient}\nCreated at: {created_at}\nReviewed at: {reviewed_at}\nVerification note: {verification_note}",
+        Language.RU: "Детали заявки #{id}\nМетод: {method}\nК зачислению (net): {amount}\nКомиссия: {fee_amount}\nК оплате (gross): {gross_amount}\nСтатус: {status}\nTXID: {txid}\nUID отправителя: {sender_uid}\nВнешняя ссылка/референс: {external_reference}\nПроверенная сеть: {verified_network}\nПроверенный токен: {verified_token}\nПроверенная сумма: {verified_amount}\nКошелек получателя: {verified_recipient}\nСоздана: {created_at}\nПроверена: {reviewed_at}\nПримечание проверки: {verification_note}",
+        Language.EN: "Request #{id} details\nMethod: {method}\nTo credit (net): {amount}\nFee: {fee_amount}\nTo pay (gross): {gross_amount}\nStatus: {status}\nTXID: {txid}\nSender UID: {sender_uid}\nExternal reference: {external_reference}\nVerified network: {verified_network}\nVerified token: {verified_token}\nVerified amount: {verified_amount}\nRecipient wallet: {verified_recipient}\nCreated at: {created_at}\nReviewed at: {reviewed_at}\nVerification note: {verification_note}",
     },
     "top_up_not_provided": {
         Language.RU: "—",
@@ -320,9 +320,9 @@ TEXTS: dict[str, dict[Language, str]] = {
     "top_up_status_rejected": {Language.RU: "Отклонено", Language.EN: "Rejected"},
     "top_up_status_expired": {Language.RU: "Истекло", Language.EN: "Expired"},
     "top_up_status_pending": {Language.RU: "В обработке", Language.EN: "Pending"},
-    "top_up_method_crypto": {Language.RU: "🧾 Crypto Pay", Language.EN: "🧾 Crypto Pay"},
-    "top_up_method_bybit": {Language.RU: "🏦 Bybit UID", Language.EN: "🏦 Bybit UID"},
-    "top_up_cancel": {Language.RU: "❌ Отменить", Language.EN: "❌ Cancel"},
+    "top_up_method_crypto": {Language.RU: "Crypto Pay", Language.EN: "Crypto Pay"},
+    "top_up_method_bybit": {Language.RU: "Bybit UID", Language.EN: "Bybit UID"},
+    "top_up_cancel": {Language.RU: "Отменить", Language.EN: "Cancel"},
     "top_up_crypto_intro": {
         Language.RU: "Пополнение через Crypto Pay invoice. Введите сумму, которую хотите получить на баланс (net).",
         Language.EN: "Top up via Crypto Pay invoice. Enter amount you want to receive on balance (net).",
@@ -341,8 +341,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Invalid amount. Enter a number greater than 0 with up to 2 decimal places.",
     },
     "top_up_request_summary": {
-        Language.RU: "Заявка на пополнение создана ✅\nID: #{id}\nМетод: {method}\nК зачислению (net): {amount} {currency}\nКомиссия: {fee_amount} {currency}\nК оплате (gross): {gross_amount} {currency}\nСтатус: {status}\nПримечание: {note}",
-        Language.EN: "Top-up request created ✅\nID: #{id}\nMethod: {method}\nTo credit (net): {amount} {currency}\nFee: {fee_amount} {currency}\nTo pay (gross): {gross_amount} {currency}\nStatus: {status}\nNote: {note}",
+        Language.RU: "Заявка на пополнение создана\nID: #{id}\nМетод: {method}\nК зачислению (net): {amount}\nКомиссия: {fee_amount}\nК оплате (gross): {gross_amount}\nСтатус: {status}\nПримечание: {note}",
+        Language.EN: "Top-up request created\nID: #{id}\nMethod: {method}\nTo credit (net): {amount}\nFee: {fee_amount}\nTo pay (gross): {gross_amount}\nStatus: {status}\nNote: {note}",
     },
     "top_up_enter_txid": {
         Language.RU: "Теперь отправьте TXID транзакции.",
@@ -383,8 +383,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Bybit top up is temporarily unavailable: recipient UID is not configured.",
     },
     "top_up_bybit_transfer_instruction": {
-        Language.RU: "Переведите ровно {gross_amount} {currency} на Bybit UID получателя: {recipient_uid}\nКомментарий/инструкция: {recipient_note}",
-        Language.EN: "Send exactly {gross_amount} {currency} to recipient Bybit UID: {recipient_uid}\nComment/instruction: {recipient_note}",
+        Language.RU: "Переведите ровно {gross_amount} на Bybit UID получателя: {recipient_uid}\nКомментарий/инструкция: {recipient_note}",
+        Language.EN: "Send exactly {gross_amount} to recipient Bybit UID: {recipient_uid}\nComment/instruction: {recipient_note}",
     },
     "top_up_bybit_reference_prompt": {
         Language.RU: "Отправьте UID отправителя Bybit (только цифры) или внешний референс платежа (минимум 6 символов).",
@@ -399,8 +399,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Cannot update Bybit UID/reference: request is no longer in expected status.",
     },
     "top_up_bybit_auto_verified": {
-        Language.RU: "Bybit auto-verify: заявка #{id} подтверждена автоматически, зачислено {amount} {currency}.",
-        Language.EN: "Bybit auto-verify: request #{id} was verified automatically, credited {amount} {currency}.",
+        Language.RU: "Bybit auto-verify: заявка #{id} подтверждена автоматически, зачислено {amount}.",
+        Language.EN: "Bybit auto-verify: request #{id} was verified automatically, credited {amount}.",
     },
     "top_up_bybit_auto_pending": {
         Language.RU: "Bybit auto-verify включен, но платеж пока не найден. Заявка остается на проверке.",
@@ -411,16 +411,25 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "UID/reference saved: {reference}. Automatic payment verification has started.",
     },
     "top_up_bybit_retry_button": {
-        Language.RU: "🔄 Проверить снова #{id}",
-        Language.EN: "🔄 Check again #{id}",
+        Language.RU: "Проверить снова #{id}",
+        Language.EN: "Check again #{id}",
     },
     "top_up_bybit_retry_not_available": {
         Language.RU: "Повторная Bybit авто-проверка доступна только для Bybit-заявок в статусе «На проверке».",
         Language.EN: "Bybit retry is available only for Bybit requests under verification.",
     },
     "top_up_bybit_retry_verified": {
-        Language.RU: "Повторная авто-проверка успешна ✅ Заявка #{id} подтверждена, зачислено {amount} {currency}.",
-        Language.EN: "Retry auto-verification succeeded ✅ Request #{id} verified, credited {amount} {currency}.",
+        Language.RU: "Повторная авто-проверка успешна. Заявка #{id} подтверждена, зачислено {amount}.",
+        Language.EN: "Retry auto-verification succeeded. Request #{id} verified, credited {amount}.",
+    },
+    "top_up_contact_admin": {Language.RU: "Связаться с админом по оплате", Language.EN: "Contact admin about payment"},
+    "top_up_manual_contact_notice": {
+        Language.RU: "Запрос на ручное пополнение.\nTelegram ID: {telegram_id}\nUsername: {username}\nЯзык: {language}\nБаланс: {balance}",
+        Language.EN: "Manual top-up request.\nTelegram ID: {telegram_id}\nUsername: {username}\nLanguage: {language}\nBalance: {balance}",
+    },
+    "top_up_manual_contact_sent": {
+        Language.RU: "Уведомление отправлено администратору. Ожидайте ответа.",
+        Language.EN: "Notification sent to admin. Please wait for a response.",
     },
     "top_up_bybit_retry_pending": {
         Language.RU: "Авто-проверка выполнена, но платеж пока не найден. Заявка #{id} остается на проверке.",

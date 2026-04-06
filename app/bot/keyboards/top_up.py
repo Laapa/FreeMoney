@@ -7,6 +7,7 @@ TOP_UP_METHOD_CRYPTO = "top_up_method_crypto"
 TOP_UP_METHOD_BYBIT = "top_up_method_bybit"
 TOP_UP_MY_REQUESTS = "top_up_my_requests"
 TOP_UP_CANCEL = "top_up_cancel"
+TOP_UP_CONTACT_ADMIN = "top_up_contact_admin"
 
 
 def top_up_main_keyboard(language: Language, *, show_bybit: bool = True) -> ReplyKeyboardMarkup:
@@ -23,6 +24,7 @@ def top_up_main_keyboard_for_request(
     if show_bybit:
         method_row.append(KeyboardButton(text=t(TOP_UP_METHOD_BYBIT, language)))
     request_rows = [[KeyboardButton(text=t(TOP_UP_MY_REQUESTS, language))]]
+    request_rows.append([KeyboardButton(text=t(TOP_UP_CONTACT_ADMIN, language))])
     if bybit_retry_request_id is not None:
         request_rows.append([KeyboardButton(text=t("top_up_bybit_retry_button", language).format(id=bybit_retry_request_id))])
     return ReplyKeyboardMarkup(

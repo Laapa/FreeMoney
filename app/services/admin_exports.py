@@ -7,11 +7,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
 from app.models.offer import Offer
+from app.models.enums import ProductStatus
 from app.models.order import Order
 from app.models.product_pool import ProductPool
 
@@ -86,6 +87,60 @@ def export_offer_snapshot(db: Session, *, offer: Offer, reason: str) -> ExportRe
     return ExportResult(file_path=export_path, payload=payload)
 
 
+def _direct_stock_leftovers_query(*, offer_id: int):
+    return (
+        select(ProductPool)
+        .where(
+            ProductPool.offer_id == offer_id,
+            ProductPool.status == ProductStatus.AVAILABLE,
+            ~exists().where(Order.product_id == ProductPool.id),
+        )
+        .order_by(ProductPool.id.asc())
+    )
+
+
+def export_offer_leftovers_snapshot(
+    db: Session,
+    *,
+    offer: Offer,
+    reason: str,
+    leftovers: list[ProductPool] | None = None,
+) -> ExportResult:
+    exportable_rows = leftovers
+    if exportable_rows is None:
+        exportable_rows = db.scalars(_direct_stock_leftovers_query(offer_id=offer.id)).all()
+
+    payload = {
+        "entity_type": "offer",
+        "export_reason": reason,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "offer": _row_to_dict(
+            offer,
+            (
+                "id",
+                "category_id",
+                "name_ru",
+                "name_en",
+                "description_ru",
+                "description_en",
+                "fulfillment_type",
+                "base_price",
+                "is_active",
+                "sort_order",
+                "created_at",
+            ),
+        ),
+        "direct_stock_leftovers": [
+            _row_to_dict(product, ("id", "offer_id", "payload", "status", "created_at"))
+            for product in exportable_rows
+        ],
+        "direct_stock_leftovers_count": len(exportable_rows),
+    }
+    export_path = _project_root() / "exports" / "offers" / f"offer_{offer.id}_{_timestamp()}.json"
+    _write_export(export_path, payload)
+    return ExportResult(file_path=export_path, payload=payload)
+
+
 def export_category_snapshot(db: Session, *, category: Category, reason: str) -> ExportResult:
     offers = db.scalars(
         select(Offer)
@@ -129,6 +184,64 @@ def export_category_snapshot(db: Session, *, category: Category, reason: str) ->
             )
             for offer in offers
         ],
+    }
+    export_path = _project_root() / "exports" / "categories" / f"category_{category.id}_{_timestamp()}.json"
+    _write_export(export_path, payload)
+    return ExportResult(file_path=export_path, payload=payload)
+
+
+def export_category_with_offers_snapshot(db: Session, *, category: Category, reason: str) -> ExportResult:
+    offers = db.scalars(
+        select(Offer)
+        .where(Offer.category_id == category.id)
+        .order_by(Offer.id.asc())
+    ).all()
+
+    offer_rows: list[dict[str, Any]] = []
+    for offer in offers:
+        offer_payload = _row_to_dict(
+            offer,
+            (
+                "id",
+                "category_id",
+                "name_ru",
+                "name_en",
+                "description_ru",
+                "description_en",
+                "fulfillment_type",
+                "base_price",
+                "is_active",
+                "sort_order",
+                "created_at",
+            ),
+        )
+        if offer.fulfillment_type.value == "direct_stock":
+            leftovers = db.scalars(_direct_stock_leftovers_query(offer_id=offer.id)).all()
+            offer_payload["direct_stock_leftovers"] = [
+                _row_to_dict(product, ("id", "offer_id", "payload", "status", "created_at"))
+                for product in leftovers
+            ]
+            offer_payload["direct_stock_leftovers_count"] = len(leftovers)
+        offer_rows.append(offer_payload)
+
+    payload = {
+        "entity_type": "category",
+        "export_reason": reason,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "category": _row_to_dict(
+            category,
+            (
+                "id",
+                "name_ru",
+                "name_en",
+                "description_ru",
+                "description_en",
+                "parent_id",
+                "is_active",
+                "sort_order",
+            ),
+        ),
+        "offers": offer_rows,
     }
     export_path = _project_root() / "exports" / "categories" / f"category_{category.id}_{_timestamp()}.json"
     _write_export(export_path, payload)

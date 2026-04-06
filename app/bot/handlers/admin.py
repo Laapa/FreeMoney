@@ -46,6 +46,19 @@ def _safe_parse_int(raw: str, *, field_name: str) -> tuple[int | None, str | Non
         return None, f"{field_name} должен быть числом"
 
 
+def _parse_count_token(raw: str | None) -> tuple[int | str | None, str | None]:
+    if raw is None or raw == "":
+        return None, None
+    if raw.lower() == "all":
+        return "all", None
+    parsed, error = _safe_parse_int(raw, field_name="count")
+    if parsed is None:
+        return None, error
+    if parsed < 0:
+        return None, "count должен быть >= 0 или all"
+    return parsed, None
+
+
 def _exit_language_for_user(telegram_id: int) -> Language:
     with SessionLocal() as db:
         user = get_user_by_telegram_id(db, telegram_id)
@@ -111,31 +124,60 @@ async def admin_categories_input(message: Message) -> None:
             await message.answer(f"Категория создана #{category.id}")
             return
         if message.text.startswith("TOGGLE_CAT|"):
-            _, cid, mode = message.text.split("|", maxsplit=2)
-            category_id, error = _safe_parse_int(cid, field_name="category_id")
-            if category_id is None:
-                await message.answer(error)
-                return
-            category = admin_service.update_category_activity(db, category_id=category_id, is_active=mode == "on")
-            await message.answer("Обновлено" if category else "Категория не найдена")
+            lines = [line.strip() for line in message.text.splitlines() if line.strip()]
+            done = 0
+            errors: list[str] = []
+            for idx, line in enumerate(lines, start=1):
+                if not line.startswith("TOGGLE_CAT|"):
+                    errors.append(f"Строка {idx}: не начинается с TOGGLE_CAT|")
+                    continue
+                _, cid, mode = line.split("|", maxsplit=2)
+                category_id, error = _safe_parse_int(cid, field_name="category_id")
+                if category_id is None:
+                    errors.append(f"Строка {idx}: {error}")
+                    continue
+                category = admin_service.update_category_activity(db, category_id=category_id, is_active=mode == "on")
+                if category is None:
+                    errors.append(f"Строка {idx}: категория не найдена")
+                    continue
+                done += 1
+            answer = [f"TOGGLE_CAT выполнено: {done}"]
+            if errors:
+                answer.append("Ошибки:")
+                answer.extend(errors)
+            await message.answer("\n".join(answer))
             return
         if message.text.startswith("EXPORT_CAT|"):
-            _, cid = message.text.split("|", maxsplit=1)
-            category_id, error = _safe_parse_int(cid, field_name="category_id")
-            if category_id is None:
-                await message.answer(error)
-                return
-            category, export_path = admin_service.export_category(db, category_id=category_id, reason="manual_export")
-            await message.answer(f"Экспорт сохранен: {export_path}" if category else "Категория не найдена")
+            lines = [line.strip() for line in message.text.splitlines() if line.strip()]
+            reports: list[str] = []
+            for idx, line in enumerate(lines, start=1):
+                if not line.startswith("EXPORT_CAT|"):
+                    reports.append(f"Строка {idx}: не EXPORT_CAT команда")
+                    continue
+                _, cid = line.split("|", maxsplit=1)
+                category_id, error = _safe_parse_int(cid, field_name="category_id")
+                if category_id is None:
+                    reports.append(f"Строка {idx}: {error}")
+                    continue
+                category, export_path = admin_service.export_category(db, category_id=category_id, reason="manual_export")
+                reports.append(f"Строка {idx}: экспорт #{category_id} -> {export_path}" if category else f"Строка {idx}: категория не найдена")
+            await message.answer("\n".join(reports))
             return
         if message.text.startswith("DELETE_CAT|"):
-            _, cid = message.text.split("|", maxsplit=1)
-            category_id, error = _safe_parse_int(cid, field_name="category_id")
-            if category_id is None:
-                await message.answer(error)
-                return
-            ok, details = admin_service.delete_category(db, category_id=category_id)
-            await message.answer(details if ok else f"Удаление запрещено: {details}")
+            lines = [line.strip() for line in message.text.splitlines() if line.strip()]
+            reports: list[str] = []
+            for idx, line in enumerate(lines, start=1):
+                if not line.startswith("DELETE_CAT|"):
+                    reports.append(f"Строка {idx}: не DELETE_CAT команда")
+                    continue
+                _, cid = line.split("|", maxsplit=1)
+                category_id, error = _safe_parse_int(cid, field_name="category_id")
+                if category_id is None:
+                    reports.append(f"Строка {idx}: {error}")
+                    continue
+                ok, details = admin_service.delete_category(db, category_id=category_id)
+                reports.append(f"Строка {idx}: {details}" if ok else f"Строка {idx}: ошибка {details}")
+            await message.answer("\n".join(reports))
             return
 
 
@@ -156,8 +198,8 @@ async def admin_prices(callback: CallbackQuery, state: FSMContext) -> None:
         "Добавить товар: OFFER|category_id|name_ru|name_en|fulfillment_type|price|description_ru|description_en",
         "Цена: PRICE|offer_id|amount",
         "Активность: TOGGLE_OFFER|offer_id|on/off",
-        "Экспорт: EXPORT_OFFER|offer_id",
-        "Удаление: DELETE_OFFER|offer_id",
+        "Экспорт: EXPORT_OFFER|offer_id|count(optional, all/число)",
+        "Удаление: DELETE_OFFER|offer_id|count(optional, all/число)",
         "Баланс: BALANCE|telegram_id|set/add/sub|amount",
     ]
     await callback.message.answer("\n".join(lines))
@@ -170,7 +212,7 @@ async def admin_offer_input(message: Message) -> None:
     if message.from_user is None or not _is_admin(message.from_user.id) or not message.text:
         return
     with SessionLocal() as db:
-        if message.text.startswith("OFFER|") or "\n" in message.text:
+        if message.text.startswith("OFFER|"):
             lines = [line.strip() for line in message.text.splitlines() if line.strip()]
             created_ids: list[int] = []
             errors: list[str] = []
@@ -231,31 +273,79 @@ async def admin_offer_input(message: Message) -> None:
             await message.answer("Цена обновлена" if offer else "Товар не найден")
             return
         if message.text.startswith("TOGGLE_OFFER|"):
-            _, oid, mode = message.text.split("|", maxsplit=2)
-            offer_id, error = _safe_parse_int(oid, field_name="offer_id")
-            if offer_id is None:
-                await message.answer(error)
-                return
-            offer = admin_service.update_offer_activity(db, offer_id=offer_id, is_active=mode == "on")
-            await message.answer("Обновлено" if offer else "Товар не найден")
+            lines = [line.strip() for line in message.text.splitlines() if line.strip()]
+            done = 0
+            errors: list[str] = []
+            for idx, line in enumerate(lines, start=1):
+                if not line.startswith("TOGGLE_OFFER|"):
+                    errors.append(f"Строка {idx}: не TOGGLE_OFFER команда")
+                    continue
+                _, oid, mode = line.split("|", maxsplit=2)
+                offer_id, error = _safe_parse_int(oid, field_name="offer_id")
+                if offer_id is None:
+                    errors.append(f"Строка {idx}: {error}")
+                    continue
+                offer = admin_service.update_offer_activity(db, offer_id=offer_id, is_active=mode == "on")
+                if offer is None:
+                    errors.append(f"Строка {idx}: товар не найден")
+                    continue
+                done += 1
+            answer = [f"TOGGLE_OFFER выполнено: {done}"]
+            if errors:
+                answer.append("Ошибки:")
+                answer.extend(errors)
+            await message.answer("\n".join(answer))
             return
         if message.text.startswith("EXPORT_OFFER|"):
-            _, oid = message.text.split("|", maxsplit=1)
-            offer_id, error = _safe_parse_int(oid, field_name="offer_id")
-            if offer_id is None:
-                await message.answer(error)
-                return
-            offer, export_path = admin_service.export_offer(db, offer_id=offer_id, reason="manual_export")
-            await message.answer(f"Экспорт сохранен: {export_path}" if offer else "Товар не найден")
+            lines = [line.strip() for line in message.text.splitlines() if line.strip()]
+            reports: list[str] = []
+            for idx, line in enumerate(lines, start=1):
+                if not line.startswith("EXPORT_OFFER|"):
+                    reports.append(f"Строка {idx}: не EXPORT_OFFER команда")
+                    continue
+                parts = line.split("|")
+                if len(parts) < 2:
+                    reports.append(f"Строка {idx}: недостаточно полей")
+                    continue
+                offer_id, error = _safe_parse_int(parts[1], field_name="offer_id")
+                if offer_id is None:
+                    reports.append(f"Строка {idx}: {error}")
+                    continue
+                count, count_error = _parse_count_token(parts[2] if len(parts) > 2 else None)
+                if count_error:
+                    reports.append(f"Строка {idx}: {count_error}")
+                    continue
+                offer, export_path, summary = admin_service.export_offer(db, offer_id=offer_id, reason="manual_export", count=count)
+                if offer is None:
+                    reports.append(f"Строка {idx}: товар не найден")
+                    continue
+                reports.append(
+                    f"Строка {idx}: экспорт #{offer_id} -> {export_path}; найдено={summary.get('available_found', 0)} выгружено={summary.get('exported', 0)} не обработано={summary.get('skipped', 0)}"
+                )
+            await message.answer("\n".join(reports))
             return
         if message.text.startswith("DELETE_OFFER|"):
-            _, oid = message.text.split("|", maxsplit=1)
-            offer_id, error = _safe_parse_int(oid, field_name="offer_id")
-            if offer_id is None:
-                await message.answer(error)
-                return
-            ok, details = admin_service.delete_offer(db, offer_id=offer_id)
-            await message.answer(details if ok else f"Удаление запрещено: {details}")
+            lines = [line.strip() for line in message.text.splitlines() if line.strip()]
+            reports: list[str] = []
+            for idx, line in enumerate(lines, start=1):
+                if not line.startswith("DELETE_OFFER|"):
+                    reports.append(f"Строка {idx}: не DELETE_OFFER команда")
+                    continue
+                parts = line.split("|")
+                if len(parts) < 2:
+                    reports.append(f"Строка {idx}: недостаточно полей")
+                    continue
+                offer_id, error = _safe_parse_int(parts[1], field_name="offer_id")
+                if offer_id is None:
+                    reports.append(f"Строка {idx}: {error}")
+                    continue
+                count, count_error = _parse_count_token(parts[2] if len(parts) > 2 else None)
+                if count_error:
+                    reports.append(f"Строка {idx}: {count_error}")
+                    continue
+                ok, details = admin_service.delete_offer(db, offer_id=offer_id, count=count)
+                reports.append(f"Строка {idx}: {details}" if ok else f"Строка {idx}: ошибка {details}")
+            await message.answer("\n".join(reports))
             return
         if message.text.startswith("BALANCE|"):
             _, tg_id_raw, action, amount_raw = message.text.split("|", maxsplit=3)
@@ -304,14 +394,30 @@ async def admin_payload_add_input(message: Message) -> None:
     if not message.text.startswith("PAYLOAD|"):
         await message.answer("Формат: PAYLOAD|offer_id|text")
         return
-    _, offer_id, payload = message.text.split("|", maxsplit=2)
-    parsed_offer_id, error = _safe_parse_int(offer_id, field_name="offer_id")
-    if parsed_offer_id is None:
-        await message.answer(error)
-        return
+    rows: list[tuple[int, str]] = []
+    errors: list[str] = []
+    for idx, line in enumerate([line.strip() for line in message.text.splitlines() if line.strip()], start=1):
+        if not line.startswith("PAYLOAD|"):
+            errors.append(f"Строка {idx}: не PAYLOAD команда")
+            continue
+        parts = line.split("|", maxsplit=2)
+        if len(parts) < 3:
+            errors.append(f"Строка {idx}: недостаточно полей")
+            continue
+        _, offer_id, payload = parts
+        parsed_offer_id, error = _safe_parse_int(offer_id, field_name="offer_id")
+        if parsed_offer_id is None:
+            errors.append(f"Строка {idx}: {error}")
+            continue
+        rows.append((parsed_offer_id, payload))
     with SessionLocal() as db:
-        product = admin_service.add_direct_stock_payload(db, offer_id=parsed_offer_id, payload=payload)
-    await message.answer("Payload добавлен" if product else "Товар не найден или не direct_stock")
+        added, service_errors = admin_service.add_direct_stock_payload_batch(db, rows=rows)
+    all_errors = errors + service_errors
+    summary = [f"Добавлено payload: {added}"]
+    if all_errors:
+        summary.append("Ошибки:")
+        summary.extend(all_errors)
+    await message.answer("\n".join(summary))
 
 
 @router.callback_query(StateFilter("*"), F.data == "adm:orders")

@@ -1,4 +1,5 @@
 from math import ceil
+import logging
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -41,6 +42,7 @@ from app.services.admin import is_admin_telegram_id
 
 router = Router(name="menu")
 ORDERS_PER_PAGE = 5
+logger = logging.getLogger(__name__)
 
 
 def _format_dt(value) -> str:
@@ -74,6 +76,30 @@ def _payment_method_label(method: PaymentMethod, language: Language) -> str:
     if method == PaymentMethod.TEST_STUB:
         return "Test Stub"
     return method.value
+
+
+async def _notify_admins_manual_order(*, callback: CallbackQuery, order: Order, offer: Offer | None, user: User) -> None:
+    if order.fulfillment_type not in {FulfillmentType.MANUAL_SUPPLIER, FulfillmentType.ACTIVATION_TASK}:
+        return
+    offer_name = offer.name_ru if (offer and user.language == Language.RU) else (offer.name_en if offer else f"offer#{order.offer_id}")
+    username_label = f"@{user.username}" if user.username else "-"
+    text = (
+        "⚠️ Заказ требует ручной обработки\n"
+        f"order_id: {order.id}\n"
+        f"user_telegram_id: {user.telegram_id}\n"
+        f"username: {username_label}"
+    )
+    text += (
+        f"\noffer: {offer_name}\n"
+        f"fulfillment_type: {order.fulfillment_type.value}\n"
+        f"amount: {format_money(order.price)}\n"
+        f"status: {order.status.value}"
+    )
+    for admin_id in get_settings().admin_telegram_ids:
+        try:
+            await callback.bot.send_message(chat_id=admin_id, text=text)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to notify admin about manual order | order_id=%s admin_id=%s err=%s", order.id, admin_id, str(exc))
 
 
 def _sanitize_payload(payload: str, limit: int = 300) -> str:
@@ -412,13 +438,15 @@ async def on_order_check_payment(callback: CallbackQuery) -> None:
         if order is None:
             await callback.answer(t("orders_not_found", user.language), show_alert=True)
             return
+        old_status = order.status
         result = check_order_payment(db, order=order, test_confirm=True)
         order = get_user_order(db, user_id=user.id, order_id=order_id)
         item_title = None
+        order_offer = None
         if order:
-            offer = db.get(Offer, order.offer_id)
-            if offer is not None:
-                item_title = offer.name_ru if user.language == Language.RU else offer.name_en
+            order_offer = db.get(Offer, order.offer_id)
+            if order_offer is not None:
+                item_title = order_offer.name_ru if user.language == Language.RU else order_offer.name_en
 
     if order is None:
         await callback.answer(t("orders_not_found", user.language), show_alert=True)
@@ -452,6 +480,8 @@ async def on_order_check_payment(callback: CallbackQuery) -> None:
     )
     if order.delivered_payload:
         await message.answer(t("orders_delivery_message", user.language).format(payload=order.delivered_payload))
+    elif old_status == OrderStatus.PENDING and order.status == OrderStatus.PROCESSING:
+        await _notify_admins_manual_order(callback=callback, order=order, offer=order_offer, user=user)
     await callback.answer(t("orders_payment_success_toast", user.language))
 
 
@@ -487,6 +517,7 @@ async def on_order_pay_balance(callback: CallbackQuery) -> None:
     order_id = int(callback.data.split(":")[-1])
 
     with SessionLocal() as db:
+        order_before = get_user_order(db, user_id=user.id, order_id=order_id)
         result = pay_pending_order_from_balance(db, user_id=user.id, order_id=order_id)
         order = get_user_order(db, user_id=user.id, order_id=order_id)
         if order is not None:
@@ -509,6 +540,8 @@ async def on_order_pay_balance(callback: CallbackQuery) -> None:
     )
     if order.delivered_payload:
         await message.answer(t("orders_delivery_message", user.language).format(payload=order.delivered_payload))
+    elif order_before is not None and order_before.status == OrderStatus.PENDING and order.status == OrderStatus.PROCESSING:
+        await _notify_admins_manual_order(callback=callback, order=order, offer=offer if order is not None else None, user=user)
     await callback.answer(t("orders_payment_success_toast", user.language))
 
 

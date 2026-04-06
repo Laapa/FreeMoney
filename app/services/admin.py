@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
@@ -12,7 +13,14 @@ from app.models.order import Order
 from app.models.product_pool import ProductPool
 from app.models.top_up_request import TopUpRequest
 from app.models.user import User
-from app.services.admin_exports import can_delete_category, can_delete_offer, export_category_snapshot, export_offer_snapshot
+from app.services.admin_exports import (
+    can_delete_category,
+    can_delete_offer,
+    export_category_snapshot,
+    export_category_with_offers_snapshot,
+    export_offer_leftovers_snapshot,
+    export_offer_snapshot,
+)
 
 
 def is_admin_telegram_id(telegram_id: int, admin_ids: set[int]) -> bool:
@@ -98,32 +106,115 @@ def update_offer_activity(db: Session, *, offer_id: int, is_active: bool) -> Off
     return offer
 
 
-def export_offer(db: Session, *, offer_id: int, reason: str) -> tuple[Offer | None, str | None]:
+def _parse_count(count: int | str | None) -> int | None:
+    if count is None:
+        return None
+    if isinstance(count, int):
+        return max(count, 0)
+    if count.lower() == "all":
+        return None
+    return max(int(count), 0)
+
+
+def _available_direct_stock_products_query(*, offer_id: int):
+    return (
+        select(ProductPool)
+        .where(
+            ProductPool.offer_id == offer_id,
+            ProductPool.status == ProductStatus.AVAILABLE,
+            ~exists().where(Order.product_id == ProductPool.id),
+        )
+        .order_by(ProductPool.id.asc())
+    )
+
+
+def _take_count(items: list[ProductPool], count: int | None) -> list[ProductPool]:
+    if count is None:
+        return items
+    return items[:count]
+
+
+def _direct_stock_available_count(db: Session, *, offer_id: int) -> int:
+    return db.scalar(
+        select(func.count(ProductPool.id)).where(
+            ProductPool.offer_id == offer_id,
+            ProductPool.status == ProductStatus.AVAILABLE,
+            ~exists().where(Order.product_id == ProductPool.id),
+        )
+    ) or 0
+
+
+def export_offer(
+    db: Session,
+    *,
+    offer_id: int,
+    reason: str,
+    count: int | str | None = None,
+) -> tuple[Offer | None, str | None, dict[str, int | str]]:
     offer = db.get(Offer, offer_id)
     if offer is None:
-        return None, None
+        return None, None, {}
+    if offer.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+        parsed_count = _parse_count(count)
+        all_available = db.scalars(_available_direct_stock_products_query(offer_id=offer.id)).all()
+        selected = _take_count(all_available, parsed_count)
+        result = export_offer_leftovers_snapshot(db, offer=offer, reason=reason, leftovers=selected)
+        summary = {
+            "available_found": len(all_available),
+            "exported": len(selected),
+            "skipped": max(len(all_available) - len(selected), 0),
+        }
+        return offer, str(result.file_path), summary
     result = export_offer_snapshot(db, offer=offer, reason=reason)
-    return offer, str(result.file_path)
+    return offer, str(result.file_path), {"available_found": 0, "exported": 0, "skipped": 0}
 
 
-def delete_offer(db: Session, *, offer_id: int) -> tuple[bool, str]:
+def delete_offer(db: Session, *, offer_id: int, count: int | str | None = None) -> tuple[bool, str]:
     offer = db.get(Offer, offer_id)
     if offer is None:
         return False, "Товар не найден"
+
+    if offer.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+        parsed_count = _parse_count(count)
+        all_available = db.scalars(_available_direct_stock_products_query(offer_id=offer.id)).all()
+        selected = _take_count(all_available, parsed_count)
+        export_result = export_offer_leftovers_snapshot(db, offer=offer, reason="delete_offer_leftovers", leftovers=selected)
+        deleted = 0
+        for product in selected:
+            db.delete(product)
+            deleted += 1
+        offer.is_active = False
+        db.commit()
+        return (
+            True,
+            "Оффер скрыт из каталога; direct_stock остатки обработаны. "
+            f"Доступно: {len(all_available)}, удалено: {deleted}, не обработано: {max(len(all_available) - deleted, 0)}. "
+            f"Snapshot: {export_result.file_path}",
+        )
+
     export_result = export_offer_snapshot(db, offer=offer, reason="delete_offer")
     allowed, reason = can_delete_offer(db, offer_id=offer_id)
-    if not allowed:
-        return False, f"{reason}. Snapshot: {export_result.file_path}"
-    db.delete(offer)
+    if allowed:
+        try:
+            db.delete(offer)
+            db.commit()
+            return True, f"Товар удален. Snapshot: {export_result.file_path}"
+        except IntegrityError:
+            db.rollback()
+    offer.is_active = False
     db.commit()
-    return True, f"Товар удален. Snapshot: {export_result.file_path}"
+    return (
+        True,
+        "Товар выведен из активного меню, исторические записи сохранены. "
+        f"Snapshot: {export_result.file_path}"
+    )
 
 
 def export_category(db: Session, *, category_id: int, reason: str) -> tuple[Category | None, str | None]:
     category = db.get(Category, category_id)
     if category is None:
         return None, None
-    result = export_category_snapshot(db, category=category, reason=reason)
+    result = export_category_with_offers_snapshot(db, category=category, reason=reason)
     return category, str(result.file_path)
 
 
@@ -131,13 +222,35 @@ def delete_category(db: Session, *, category_id: int) -> tuple[bool, str]:
     category = db.get(Category, category_id)
     if category is None:
         return False, "Категория не найдена"
-    export_result = export_category_snapshot(db, category=category, reason="delete_category")
-    allowed, reason = can_delete_category(db, category_id=category_id)
-    if not allowed:
-        return False, f"{reason}. Snapshot: {export_result.file_path}"
-    db.delete(category)
+    export_result = export_category_with_offers_snapshot(db, category=category, reason="delete_category")
+    offers = list_offers_for_admin(db, category_id=category.id)
+    removed_leftovers = 0
+    for offer in offers:
+        if offer.fulfillment_type == FulfillmentType.DIRECT_STOCK:
+            leftovers = db.scalars(_available_direct_stock_products_query(offer_id=offer.id)).all()
+            for product in leftovers:
+                db.delete(product)
+                removed_leftovers += 1
+        offer.is_active = False
+
+    allowed, _ = can_delete_category(db, category_id=category_id)
+    if allowed:
+        try:
+            db.delete(category)
+            db.commit()
+            return True, f"Категория удалена. Snapshot: {export_result.file_path}"
+        except IntegrityError:
+            db.rollback()
+            category = db.get(Category, category_id)
+            if category is None:
+                return True, f"Категория удалена. Snapshot: {export_result.file_path}"
+    category.is_active = False
     db.commit()
-    return True, f"Категория удалена. Snapshot: {export_result.file_path}"
+    return (
+        True,
+        "Категория и офферы выведены из активного меню, история сохранена. "
+        f"Удалено direct_stock остатков: {removed_leftovers}. Snapshot: {export_result.file_path}"
+    )
 
 
 def add_direct_stock_payload(db: Session, *, offer_id: int, payload: str) -> ProductPool | None:
@@ -149,6 +262,18 @@ def add_direct_stock_payload(db: Session, *, offer_id: int, payload: str) -> Pro
     db.commit()
     db.refresh(product)
     return product
+
+
+def add_direct_stock_payload_batch(db: Session, *, rows: list[tuple[int, str]]) -> tuple[int, list[str]]:
+    added = 0
+    errors: list[str] = []
+    for idx, (offer_id, payload) in enumerate(rows, start=1):
+        product = add_direct_stock_payload(db, offer_id=offer_id, payload=payload)
+        if product is None:
+            errors.append(f"Строка {idx}: offer_id={offer_id} не найден или не direct_stock")
+            continue
+        added += 1
+    return added, errors
 
 
 def available_payload_count(db: Session, *, offer_id: int) -> int:

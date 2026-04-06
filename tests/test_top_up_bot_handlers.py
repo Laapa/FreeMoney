@@ -11,6 +11,7 @@ from app.bot.handlers.top_up import (
     _parse_bybit_sender_reference,
     _parse_retry_request_id,
 )
+from app.bot.keyboards.top_up import top_up_main_keyboard
 from app.models.enums import Currency, Language, TopUpMethod, TopUpStatus
 from app.models.top_up_request import TopUpRequest
 
@@ -38,7 +39,7 @@ def test_top_up_request_details_view_uses_request_data() -> None:
 
     assert "#42" in message
     assert "Crypto Pay" in message
-    assert "125.50 USD" in message
+    assert "$125.50" in message
     assert "Under verification" in message
     assert "abc123txid" in message
     assert "12345678" in message
@@ -73,7 +74,7 @@ def test_top_up_request_details_bybit_uses_bybit_coin_for_display(monkeypatch) -
     )
 
     message = _format_top_up_request_details(request, Language.EN)
-    assert "50.00 USDT" in message
+    assert "$50" in message
 
 
 def test_bybit_instruction_includes_recipient_uid_and_gross(monkeypatch) -> None:
@@ -100,7 +101,7 @@ def test_bybit_instruction_includes_recipient_uid_and_gross(monkeypatch) -> None
 
     message = _format_bybit_transfer_instructions(request=request, language=Language.EN)
 
-    assert "100.00 USDT" in message
+    assert "$100" in message
     assert "99887766" in message
     assert "SHOP" in message
 
@@ -190,8 +191,8 @@ def test_bybit_submit_message_pending_has_no_success_text() -> None:
 
 
 def test_parse_retry_request_id_supports_retry_button_text() -> None:
-    assert _parse_retry_request_id("🔄 Проверить снова #12") == 12
-    assert _parse_retry_request_id("🔄 Check again #44") == 44
+    assert _parse_retry_request_id("Проверить снова #12") == 12
+    assert _parse_retry_request_id("Check again #44") == 44
     assert _parse_retry_request_id("#9") == 9
 
 
@@ -212,3 +213,9 @@ def test_bybit_retry_allowed_only_for_pending_auto_waiting_status() -> None:
 
     base.verification_source = "auto_bybit"
     assert _is_bybit_retry_allowed(base) is False
+
+
+def test_top_up_keyboard_has_manual_contact_button() -> None:
+    keyboard = top_up_main_keyboard(Language.RU, show_bybit=True)
+    labels = [button.text for row in keyboard.keyboard for button in row]
+    assert "Связаться с админом по оплате" in labels

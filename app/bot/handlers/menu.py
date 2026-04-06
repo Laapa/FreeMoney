@@ -7,6 +7,8 @@ from sqlalchemy import select
 
 from app.bot.handlers.products import show_root_categories
 from app.bot.i18n import t
+from app.bot.money import format_money
+from app.bot.state_utils import clear_admin_state
 from app.bot.keyboards.account import (
     CALLBACK_ORDERS_BACK,
     CALLBACK_ORDERS_MENU,
@@ -87,7 +89,6 @@ def _render_orders_text(
     orders: list[Order],
     page: int,
     pages: int,
-    currency: str,
     order_item_titles: dict[int, str] | None = None,
 ) -> str:
     lines = [t("orders_title", language).format(page=page, pages=pages), ""]
@@ -98,8 +99,7 @@ def _render_orders_text(
                 id=order.id,
                 created_at=_format_dt(order.created_at),
                 status=_order_status_label(order.status, language),
-                price=order.price,
-                currency=currency,
+                price=format_money(order.price),
             )
         )
         item_title = (order_item_titles or {}).get(order.id)
@@ -112,12 +112,12 @@ def _render_orders_text(
     return "\n".join(lines).strip()
 
 
-def _render_order_details_text(*, language: Language, order: Order, currency: str, item_title: str | None = None) -> str:
+def _render_order_details_text(*, language: Language, order: Order, item_title: str | None = None) -> str:
     lines = [
         t("orders_details_title", language).format(id=order.id),
         t("orders_details_created", language).format(created_at=_format_dt(order.created_at)),
         t("orders_details_status", language).format(status=_order_status_label(order.status, language)),
-        t("orders_details_price", language).format(price=order.price, currency=currency),
+        t("orders_details_price", language).format(price=format_money(order.price)),
     ]
     if item_title:
         lines.append(t("orders_item_line", language).format(item=item_title))
@@ -157,11 +157,10 @@ async def _show_profile(message: Message, user: User) -> None:
             username=f"@{user.username}" if user.username else "-",
             registered_at=_format_dt(user.created_at),
             language=user.language.value,
-            balance=user.balance,
-            currency=user.currency.value,
+            balance=format_money(user.balance),
             total_orders=stats.total_orders,
             delivered_orders=stats.delivered_orders,
-            total_spent=stats.total_spent,
+            total_spent=format_money(stats.total_spent),
         ),
         reply_markup=profile_keyboard(user.language),
     )
@@ -188,7 +187,6 @@ async def _show_orders(message: Message, user: User, page: int = 1) -> None:
             orders=orders,
             page=page,
             pages=pages,
-            currency=user.currency.value,
             order_item_titles=order_item_titles,
         ),
         reply_markup=orders_keyboard(language=user.language, page=page, pages=pages, orders=orders),
@@ -196,7 +194,7 @@ async def _show_orders(message: Message, user: User, page: int = 1) -> None:
 
 
 @router.message(F.text)
-async def menu_handler(message: Message) -> None:
+async def menu_handler(message: Message, state: FSMContext) -> None:
     tg_user = message.from_user
     if tg_user is None or not message.text:
         return
@@ -208,6 +206,8 @@ async def menu_handler(message: Message) -> None:
         return
 
     user = _resolve_or_create_user(tg_user)
+    if key in {"menu_products", "menu_top_up", "menu_profile", "menu_orders", "menu_rules", "menu_support"}:
+        await clear_admin_state(state)
 
     if key == "menu_profile":
         await _show_profile(message, user)
@@ -218,7 +218,7 @@ async def menu_handler(message: Message) -> None:
         return
 
     if key == "menu_products":
-        await show_root_categories(message)
+        await show_root_categories(message, state=state)
         return
 
     placeholders = {
@@ -276,7 +276,6 @@ async def on_orders_page(callback: CallbackQuery) -> None:
             orders=orders,
             page=page,
             pages=pages,
-            currency=user.currency.value,
             order_item_titles=order_item_titles,
         ),
         reply_markup=orders_keyboard(language=user.language, page=page, pages=pages, orders=orders),
@@ -305,7 +304,7 @@ async def on_order_open(callback: CallbackQuery) -> None:
             item_title = offer.name_ru if user.language == Language.RU else offer.name_en
 
     await message.edit_text(
-        _render_order_details_text(language=user.language, order=order, currency=user.currency.value, item_title=item_title),
+        _render_order_details_text(language=user.language, order=order, item_title=item_title),
         reply_markup=order_details_keyboard(
             language=user.language,
             order_id=order.id,
@@ -377,10 +376,9 @@ async def on_order_pay(callback: CallbackQuery) -> None:
             id=order.id,
             title=item_title
             or (f"#{order.product_id}" if order.product_id else t(f"orders_fulfillment_{order.fulfillment_type.value}", user.language)),
-            amount=payment.net_amount if payment else order.price,
-            fee_amount=payment.fee_amount if payment else 0,
-            gross_amount=payment.gross_amount if payment else order.price,
-            currency=user.currency.value,
+            amount=format_money(payment.net_amount if payment else order.price),
+            fee_amount=format_money(payment.fee_amount if payment else 0),
+            gross_amount=format_money(payment.gross_amount if payment else order.price),
             method=payment_method_label,
             created_at=_format_dt(order.created_at),
             deadline=payment_deadline,
@@ -442,7 +440,7 @@ async def on_order_check_payment(callback: CallbackQuery) -> None:
     await message.edit_text(
         t("orders_payment_success", user.language)
         + "\n\n"
-        + _render_order_details_text(language=user.language, order=order, currency=user.currency.value, item_title=item_title),
+        + _render_order_details_text(language=user.language, order=order, item_title=item_title),
         reply_markup=order_details_keyboard(
             language=user.language,
             order_id=order.id,
@@ -498,7 +496,7 @@ async def on_order_pay_balance(callback: CallbackQuery) -> None:
             item_title = None
 
     if not result.ok:
-        await callback.answer(t("orders_payment_insufficient_balance", user.language).format(balance=user.balance, currency=user.currency.value), show_alert=True)
+        await callback.answer(t("orders_payment_insufficient_balance", user.language).format(balance=format_money(user.balance)), show_alert=True)
         return
 
     if order is None:
@@ -506,7 +504,7 @@ async def on_order_pay_balance(callback: CallbackQuery) -> None:
         return
 
     await message.edit_text(
-        t("orders_payment_success", user.language) + "\n\n" + _render_order_details_text(language=user.language, order=order, currency=user.currency.value, item_title=item_title),
+        t("orders_payment_success", user.language) + "\n\n" + _render_order_details_text(language=user.language, order=order, item_title=item_title),
         reply_markup=order_details_keyboard(language=user.language, order_id=order.id, can_pay=False, can_pay_balance=False, show_top_up=False, activation_url=_activation_link_for_order(order)),
     )
     if order.delivered_payload:
@@ -524,7 +522,7 @@ async def on_order_top_up(callback: CallbackQuery, state: FSMContext) -> None:
     user = _resolve_or_create_user(callback.from_user)
     await state.set_state(TopUpStates.choosing_method)
     await message.answer(
-        t("top_up_main", user.language).format(balance=user.balance, currency=user.currency.value),
+        t("top_up_main", user.language).format(balance=format_money(user.balance)),
         reply_markup=top_up_main_keyboard(user.language, show_bybit=_is_bybit_available_for_top_up()),
     )
     await callback.answer()

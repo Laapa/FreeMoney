@@ -10,6 +10,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from app.bot.keyboards.admin import admin_menu_keyboard
+from app.bot.keyboards.main_menu import main_menu_keyboard
+from app.bot.money import format_money
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.enums import FulfillmentType, OrderStatus, TopUpMethod, TopUpStatus
@@ -43,6 +45,17 @@ async def admin_command(message: Message) -> None:
     await message.answer("Админка WEBSTER-SHOP", reply_markup=admin_menu_keyboard())
 
 
+@router.callback_query(StateFilter("*"), F.data == "adm:exit")
+async def admin_exit(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        await callback.answer("forbidden", show_alert=True)
+        return
+    await state.clear()
+    if callback.message is not None:
+        await callback.message.answer("Вы вышли из админки", reply_markup=main_menu_keyboard(get_settings().default_language, is_admin=True))
+    await callback.answer()
+
+
 @router.callback_query(StateFilter("*"), F.data == "adm:products")
 async def admin_products(callback: CallbackQuery, state: FSMContext) -> None:
     if not _is_admin(callback.from_user.id):
@@ -52,13 +65,19 @@ async def admin_products(callback: CallbackQuery, state: FSMContext) -> None:
     with SessionLocal() as db:
         categories = admin_service.list_categories_for_admin(db)
     lines = ["Категории:"] + [f"#{c.id} {c.name_ru}/{c.name_en} active={c.is_active}" for c in categories]
-    lines += ["", "Добавить категорию: CAT|name_ru|name_en|description_ru|description_en", "Активность: TOGGLE_CAT|category_id|on/off"]
+    lines += [
+        "",
+        "Добавить категорию: CAT|name_ru|name_en|description_ru|description_en",
+        "Активность: TOGGLE_CAT|category_id|on/off",
+        "Экспорт: EXPORT_CAT|category_id",
+        "Удаление: DELETE_CAT|category_id",
+    ]
     await callback.message.answer("\n".join(lines))
     await state.set_state(AdminStates.wait_categories)
     await callback.answer()
 
 
-@router.message(AdminStates.wait_categories)
+@router.message(AdminStates.wait_categories, F.text.regexp(r"^(CAT\||TOGGLE_CAT\||EXPORT_CAT\||DELETE_CAT\|).+"))
 async def admin_categories_input(message: Message) -> None:
     if message.from_user is None or not _is_admin(message.from_user.id) or not message.text:
         return
@@ -79,7 +98,16 @@ async def admin_categories_input(message: Message) -> None:
             category = admin_service.update_category_activity(db, category_id=int(cid), is_active=mode == "on")
             await message.answer("Обновлено" if category else "Категория не найдена")
             return
-    await message.answer("Формат: CAT|... или TOGGLE_CAT|...")
+        if message.text.startswith("EXPORT_CAT|"):
+            _, cid = message.text.split("|", maxsplit=1)
+            category, export_path = admin_service.export_category(db, category_id=int(cid), reason="manual_export")
+            await message.answer(f"Экспорт сохранен: {export_path}" if category else "Категория не найдена")
+            return
+        if message.text.startswith("DELETE_CAT|"):
+            _, cid = message.text.split("|", maxsplit=1)
+            ok, details = admin_service.delete_category(db, category_id=int(cid))
+            await message.answer(details if ok else f"Удаление запрещено: {details}")
+            return
 
 
 @router.callback_query(StateFilter("*"), F.data == "adm:prices")
@@ -90,37 +118,69 @@ async def admin_prices(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     with SessionLocal() as db:
         offers = admin_service.list_offers_for_admin(db)
-    lines = ["Товары/офферы:"] + [f"#{o.id} cat={o.category_id} {o.name_ru} {o.fulfillment_type.value} price={o.base_price}" for o in offers]
-    lines += ["", "Добавить товар: OFFER|category_id|name_ru|name_en|fulfillment_type|price|description_ru|description_en", "Цена: PRICE|offer_id|amount"]
+    lines = ["Товары/офферы:"] + [
+        f"#{o.id} cat={o.category_id} {o.name_ru} {o.fulfillment_type.value} price={format_money(o.base_price or 0)} active={o.is_active}"
+        for o in offers
+    ]
+    lines += [
+        "",
+        "Добавить товар: OFFER|category_id|name_ru|name_en|fulfillment_type|price|description_ru|description_en",
+        "Цена: PRICE|offer_id|amount",
+        "Активность: TOGGLE_OFFER|offer_id|on/off",
+        "Экспорт: EXPORT_OFFER|offer_id",
+        "Удаление: DELETE_OFFER|offer_id",
+        "Баланс: BALANCE|telegram_id|set/add/sub|amount",
+    ]
     await callback.message.answer("\n".join(lines))
     await state.set_state(AdminStates.wait_offers)
     await callback.answer()
 
 
-@router.message(AdminStates.wait_offers)
-async def admin_offer_input(message: Message, state: FSMContext) -> None:
+@router.message(AdminStates.wait_offers, F.text.regexp(r"^(OFFER\||PRICE\||TOGGLE_OFFER\||EXPORT_OFFER\||DELETE_OFFER\||BALANCE\|).+"))
+async def admin_offer_input(message: Message) -> None:
     if message.from_user is None or not _is_admin(message.from_user.id) or not message.text:
         return
     with SessionLocal() as db:
-        if message.text.startswith("OFFER|"):
-            _, category_id, name_ru, name_en, ft_raw, price_raw, *desc = message.text.split("|")
-            try:
-                ft = FulfillmentType(ft_raw)
-                price = Decimal(price_raw)
-            except (ValueError, InvalidOperation):
-                await message.answer("Неверные fulfillment_type/price")
-                return
-            offer = admin_service.create_offer(
-                db,
-                category_id=int(category_id),
-                name_ru=name_ru,
-                name_en=name_en,
-                description_ru=desc[0] if desc else None,
-                description_en=desc[1] if len(desc) > 1 else (desc[0] if desc else None),
-                fulfillment_type=ft,
-                base_price=price,
-            )
-            await message.answer(f"Товар добавлен #{offer.id}" if offer else "Категория не найдена")
+        if message.text.startswith("OFFER|") or "\n" in message.text:
+            lines = [line.strip() for line in message.text.splitlines() if line.strip()]
+            created_ids: list[int] = []
+            errors: list[str] = []
+            for idx, line in enumerate(lines, start=1):
+                if not line.startswith("OFFER|"):
+                    errors.append(f"Строка {idx}: не начинается с OFFER|")
+                    continue
+                parts = line.split("|")
+                if len(parts) < 6:
+                    errors.append(f"Строка {idx}: недостаточно полей")
+                    continue
+                _, category_id, name_ru, name_en, ft_raw, price_raw, *desc = parts
+                try:
+                    ft = FulfillmentType(ft_raw)
+                    price = Decimal(price_raw)
+                except (ValueError, InvalidOperation):
+                    errors.append(f"Строка {idx}: неверные fulfillment_type/price")
+                    continue
+                offer = admin_service.create_offer(
+                    db,
+                    category_id=int(category_id),
+                    name_ru=name_ru,
+                    name_en=name_en,
+                    description_ru=desc[0] if desc else None,
+                    description_en=desc[1] if len(desc) > 1 else (desc[0] if desc else None),
+                    fulfillment_type=ft,
+                    base_price=price,
+                )
+                if offer is None:
+                    errors.append(f"Строка {idx}: категория не найдена")
+                else:
+                    created_ids.append(offer.id)
+            summary = [f"Создано офферов: {len(created_ids)}"]
+            if created_ids:
+                summary.append("ID: " + ", ".join(str(i) for i in created_ids))
+            if errors:
+                summary.append("Ошибки:")
+                summary.extend(errors)
+            await message.answer("\n".join(summary))
             return
 
         if message.text.startswith("PRICE|"):
@@ -133,8 +193,44 @@ async def admin_offer_input(message: Message, state: FSMContext) -> None:
             offer = admin_service.update_offer_price(db, offer_id=int(offer_id), price=amount)
             await message.answer("Цена обновлена" if offer else "Товар не найден")
             return
-
-    await message.answer("Формат: OFFER|... или PRICE|...")
+        if message.text.startswith("TOGGLE_OFFER|"):
+            _, oid, mode = message.text.split("|", maxsplit=2)
+            offer = admin_service.update_offer_activity(db, offer_id=int(oid), is_active=mode == "on")
+            await message.answer("Обновлено" if offer else "Товар не найден")
+            return
+        if message.text.startswith("EXPORT_OFFER|"):
+            _, oid = message.text.split("|", maxsplit=1)
+            offer, export_path = admin_service.export_offer(db, offer_id=int(oid), reason="manual_export")
+            await message.answer(f"Экспорт сохранен: {export_path}" if offer else "Товар не найден")
+            return
+        if message.text.startswith("DELETE_OFFER|"):
+            _, oid = message.text.split("|", maxsplit=1)
+            ok, details = admin_service.delete_offer(db, offer_id=int(oid))
+            await message.answer(details if ok else f"Удаление запрещено: {details}")
+            return
+        if message.text.startswith("BALANCE|"):
+            _, tg_id_raw, action, amount_raw = message.text.split("|", maxsplit=3)
+            try:
+                tg_id = int(tg_id_raw)
+                amount = Decimal(amount_raw)
+            except (ValueError, InvalidOperation):
+                await message.answer("Некорректный telegram_id/amount")
+                return
+            if amount < 0:
+                await message.answer("Сумма должна быть >= 0")
+                return
+            ok, info, old_balance, new_balance = admin_service.update_user_balance_by_telegram_id(
+                db,
+                telegram_id=tg_id,
+                action=action,
+                amount=amount,
+            )
+            if not ok:
+                await message.answer(info)
+                return
+            await message.answer(
+                f"Пользователь: {tg_id}\nСтарый баланс: {format_money(old_balance or 0)}\nНовый баланс: {format_money(new_balance or 0)}"
+            )
 
 
 @router.callback_query(StateFilter("*"), F.data == "adm:stock")

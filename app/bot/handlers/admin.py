@@ -218,12 +218,16 @@ async def admin_offer_input(message: Message) -> None:
 
         if message.text.startswith("PRICE|"):
             _, offer_id, amount_raw = message.text.split("|", maxsplit=2)
+            parsed_offer_id, error = _safe_parse_int(offer_id, field_name="offer_id")
+            if parsed_offer_id is None:
+                await message.answer(error)
+                return
             try:
                 amount = Decimal(amount_raw)
             except InvalidOperation:
                 await message.answer("Некорректная сумма")
                 return
-            offer = admin_service.update_offer_price(db, offer_id=int(offer_id), price=amount)
+            offer = admin_service.update_offer_price(db, offer_id=parsed_offer_id, price=amount)
             await message.answer("Цена обновлена" if offer else "Товар не найден")
             return
         if message.text.startswith("TOGGLE_OFFER|"):
@@ -301,8 +305,12 @@ async def admin_payload_add_input(message: Message) -> None:
         await message.answer("Формат: PAYLOAD|offer_id|text")
         return
     _, offer_id, payload = message.text.split("|", maxsplit=2)
+    parsed_offer_id, error = _safe_parse_int(offer_id, field_name="offer_id")
+    if parsed_offer_id is None:
+        await message.answer(error)
+        return
     with SessionLocal() as db:
-        product = admin_service.add_direct_stock_payload(db, offer_id=int(offer_id), payload=payload)
+        product = admin_service.add_direct_stock_payload(db, offer_id=parsed_offer_id, payload=payload)
     await message.answer("Payload добавлен" if product else "Товар не найден или не direct_stock")
 
 
@@ -349,16 +357,24 @@ async def admin_order_update_input(message: Message) -> None:
 
     if message.text.startswith("MANUAL|"):
         _, order_id_raw, status_raw = message.text.split("|", maxsplit=2)
+        order_id, error = _safe_parse_int(order_id_raw, field_name="order_id")
+        if order_id is None:
+            await message.answer(error)
+            return
         new_status = OrderStatus.DELIVERED if status_raw == "delivered" else OrderStatus.CANCELED
         with SessionLocal() as db:
-            order = admin_service.update_order_status_for_manual_supplier(db, order_id=int(order_id_raw), new_status=new_status)
+            order = admin_service.update_order_status_for_manual_supplier(db, order_id=order_id, new_status=new_status)
         await message.answer("Статус обновлен" if order else "Нельзя изменить этот заказ")
         return
 
     if message.text.startswith("ACT|"):
         _, order_id_raw = message.text.split("|", maxsplit=1)
+        order_id, error = _safe_parse_int(order_id_raw, field_name="order_id")
+        if order_id is None:
+            await message.answer(error)
+            return
         with SessionLocal() as db:
-            order = db.get(Order, int(order_id_raw))
+            order = db.get(Order, order_id)
             if order is None:
                 await message.answer("Заказ не найден")
                 return
@@ -372,12 +388,16 @@ async def admin_order_update_global(message: Message) -> None:
         return
 
     _, order_id_raw, status_raw = message.text.split("|", maxsplit=2)
+    order_id, error = _safe_parse_int(order_id_raw, field_name="order_id")
+    if order_id is None:
+        await message.answer(error)
+        return
     new_status = OrderStatus.DELIVERED if status_raw == "delivered" else OrderStatus.CANCELED
 
     with SessionLocal() as db:
         order = admin_service.update_order_status_for_manual_supplier(
             db,
-            order_id=int(order_id_raw),
+            order_id=order_id,
             new_status=new_status,
         )
 
@@ -389,9 +409,13 @@ async def admin_activation_refresh_global(message: Message) -> None:
         return
 
     _, order_id_raw = message.text.split("|", maxsplit=1)
+    order_id, error = _safe_parse_int(order_id_raw, field_name="order_id")
+    if order_id is None:
+        await message.answer(error)
+        return
 
     with SessionLocal() as db:
-        order = db.get(Order, int(order_id_raw))
+        order = db.get(Order, order_id)
         if order is None:
             await message.answer("Заказ не найден")
             return
@@ -422,6 +446,10 @@ async def admin_topup_verify(message: Message) -> None:
     if message.from_user is None or not _is_admin(message.from_user.id) or not message.text:
         return
     _, request_id_raw, status_raw, *rest = message.text.split("|", maxsplit=3)
+    request_id, error = _safe_parse_int(request_id_raw, field_name="request_id")
+    if request_id is None:
+        await message.answer(error)
+        return
     note = rest[0] if rest else None
     try:
         target_status = TopUpStatus(status_raw)
@@ -430,7 +458,7 @@ async def admin_topup_verify(message: Message) -> None:
         return
 
     with SessionLocal() as db:
-        req = db.get(TopUpRequest, int(request_id_raw))
+        req = db.get(TopUpRequest, request_id)
         if req is None:
             await message.answer("Top-up request not found")
             return

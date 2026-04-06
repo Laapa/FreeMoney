@@ -84,6 +84,50 @@ def test_invalid_ids_in_admin_commands_return_human_message(monkeypatch) -> None
     assert offer_msg.answers[-1] == "offer_id должен быть числом"
 
 
+def test_price_bad_offer_id_returns_validation_error(monkeypatch) -> None:
+    db = _make_session()
+    monkeypatch.setattr(admin_handler, "_is_admin", lambda _telegram_id: True)
+    monkeypatch.setattr(admin_handler, "SessionLocal", _SessionLocalCtx(db))
+
+    message = DummyMessage("PRICE|bad|10")
+    asyncio.run(admin_handler.admin_offer_input(message))
+    assert message.answers[-1] == "offer_id должен быть числом"
+
+
+def test_payload_bad_offer_id_returns_validation_error(monkeypatch) -> None:
+    db = _make_session()
+    monkeypatch.setattr(admin_handler, "_is_admin", lambda _telegram_id: True)
+    monkeypatch.setattr(admin_handler, "SessionLocal", _SessionLocalCtx(db))
+
+    message = DummyMessage("PAYLOAD|oops|text")
+    asyncio.run(admin_handler.admin_payload_add_input(message))
+    assert message.answers[-1] == "offer_id должен быть числом"
+
+
+def test_manual_and_act_bad_order_id_return_validation_error(monkeypatch) -> None:
+    db = _make_session()
+    monkeypatch.setattr(admin_handler, "_is_admin", lambda _telegram_id: True)
+    monkeypatch.setattr(admin_handler, "SessionLocal", _SessionLocalCtx(db))
+
+    manual_message = DummyMessage("MANUAL|bad|delivered")
+    asyncio.run(admin_handler.admin_order_update_global(manual_message))
+    assert manual_message.answers[-1] == "order_id должен быть числом"
+
+    act_message = DummyMessage("ACT|oops")
+    asyncio.run(admin_handler.admin_activation_refresh_global(act_message))
+    assert act_message.answers[-1] == "order_id должен быть числом"
+
+
+def test_topup_verify_bad_request_id_returns_validation_error(monkeypatch) -> None:
+    db = _make_session()
+    monkeypatch.setattr(admin_handler, "_is_admin", lambda _telegram_id: True)
+    monkeypatch.setattr(admin_handler, "SessionLocal", _SessionLocalCtx(db))
+
+    message = DummyMessage("TOPUP_VERIFY|bad|verified")
+    asyncio.run(admin_handler.admin_topup_verify(message))
+    assert message.answers[-1] == "request_id должен быть числом"
+
+
 def test_admin_exit_language_resolves_from_user(monkeypatch) -> None:
     db = _make_session()
     user = User(telegram_id=777, language=Language.EN, balance=Decimal("0.00"))

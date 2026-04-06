@@ -35,6 +35,13 @@ def _availability_label(offer, language) -> str:
     return t("products_availability_supplier", language)
 
 
+def _category_screen_text(*, title: str, description: str | None, language) -> str:
+    base_text = t("products_list_title", language).format(title=title)
+    if not description:
+        return base_text
+    return f"{base_text}\n\n{t('products_category_description', language).format(description=description)}"
+
+
 async def _resolve_user(message: Message):
     tg_user = message.from_user
     if tg_user is None:
@@ -106,7 +113,7 @@ async def on_category(callback: CallbackQuery) -> None:
         await callback.answer(t("products_category_not_found", user.language), show_alert=True)
         return
     await callback.message.edit_text(
-        t("products_list_title", user.language).format(title=category.title),
+        _category_screen_text(title=category.title, description=category.description, language=user.language),
         reply_markup=offers_keyboard(offers=offers, category_id=category.id, language=user.language),
     )
     await callback.answer()

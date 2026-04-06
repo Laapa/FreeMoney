@@ -10,7 +10,7 @@ from app.models.offer import Offer
 from app.models.product_pool import ProductPool
 from app.models.user import User
 from app.models.user_offer_price import UserOfferPrice
-from app.services.catalog import get_offer_view, list_categories, list_offers, list_product_cards
+from app.services.catalog import get_category_view, get_offer_view, list_categories, list_offers, list_product_cards
 
 
 def make_session() -> Session:
@@ -65,3 +65,76 @@ def test_get_offer_view_and_product_cards() -> None:
     assert view.title == "ChatGPT Plus"
     assert view.stock_count == 2
     assert len(cards) == 2
+
+
+def test_category_view_uses_ru_description_for_ru_user() -> None:
+    db = make_session()
+    category = Category(
+        name_ru="Игры",
+        name_en="Games",
+        description_ru="Русское описание",
+        description_en="English description",
+    )
+    db.add(category)
+    db.commit()
+
+    view = get_category_view(db, language=Language.RU, category_id=category.id)
+
+    assert view is not None
+    assert view.description == "Русское описание"
+
+
+def test_category_view_uses_en_description_for_en_user() -> None:
+    db = make_session()
+    category = Category(
+        name_ru="Игры",
+        name_en="Games",
+        description_ru="Русское описание",
+        description_en="English description",
+    )
+    db.add(category)
+    db.commit()
+
+    view = get_category_view(db, language=Language.EN, category_id=category.id)
+
+    assert view is not None
+    assert view.description == "English description"
+
+
+def test_category_view_description_fallback_to_second_language() -> None:
+    db = make_session()
+    category = Category(
+        name_ru="Игры",
+        name_en="Games",
+        description_ru="Русское описание",
+        description_en="  ",
+    )
+    db.add(category)
+    db.commit()
+
+    view = get_category_view(db, language=Language.EN, category_id=category.id)
+
+    assert view is not None
+    assert view.description == "Русское описание"
+
+
+def test_category_view_without_description_and_offer_list_still_works() -> None:
+    db = make_session()
+    user = User(telegram_id=77, language=Language.RU)
+    category = Category(name_ru="Игры", name_en="Games", description_ru=None, description_en=None)
+    db.add_all([user, category])
+    db.flush()
+    offer = Offer(category_id=category.id, name_ru="RUST", name_en="RUST", fulfillment_type=FulfillmentType.DIRECT_STOCK)
+    db.add(offer)
+    db.flush()
+    db.add(UserOfferPrice(user_id=user.id, offer_id=offer.id, price=Decimal("7.00")))
+    db.add(ProductPool(offer_id=offer.id, payload="key-1", status=ProductStatus.AVAILABLE))
+    db.commit()
+
+    view = get_category_view(db, language=Language.RU, category_id=category.id)
+    offers = list_offers(db, user_id=user.id, language=Language.RU, category_id=category.id)
+
+    assert view is not None
+    assert view.description is None
+    assert len(offers) == 1
+    assert offers[0].title == "RUST"

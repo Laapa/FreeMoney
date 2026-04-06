@@ -206,6 +206,10 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.RU: "Товары в категории: {title}",
         Language.EN: "Products in category: {title}",
     },
+    "products_category_description": {
+        Language.RU: "Описание: {description}",
+        Language.EN: "Description: {description}",
+    },
     "products_breadcrumb_line": {
         Language.RU: "Путь: {path}",
         Language.EN: "Path: {path}",

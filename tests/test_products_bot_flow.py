@@ -4,6 +4,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
+from app.bot.handlers.products import _category_screen_text
+from app.bot.i18n import t
 from app.models.category import Category
 from app.models.enums import FulfillmentType, Language
 from app.models.offer import Offer
@@ -67,3 +69,16 @@ def test_buy_non_stock_offer_without_reservation() -> None:
     assert created.ok is True
     assert created.order.offer_id == offer.id
     assert view is not None and view.is_available is True
+
+
+def test_category_screen_text_renders_description_when_present() -> None:
+    text = _category_screen_text(title="Steam", description="Классические игры", language=Language.RU)
+
+    assert t("products_list_title", Language.RU).format(title="Steam") in text
+    assert t("products_category_description", Language.RU).format(description="Классические игры") in text
+
+
+def test_category_screen_text_without_description_matches_previous_layout() -> None:
+    text = _category_screen_text(title="Steam", description=None, language=Language.EN)
+
+    assert text == t("products_list_title", Language.EN).format(title="Steam")

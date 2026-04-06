@@ -7,13 +7,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import exists, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
 from app.models.offer import Offer
 from app.models.enums import ProductStatus
-from app.models.order import Order
 from app.models.product_pool import ProductPool
 
 
@@ -93,7 +92,6 @@ def _direct_stock_leftovers_query(*, offer_id: int):
         .where(
             ProductPool.offer_id == offer_id,
             ProductPool.status == ProductStatus.AVAILABLE,
-            ~exists().where(Order.product_id == ProductPool.id),
         )
         .order_by(ProductPool.id.asc())
     )

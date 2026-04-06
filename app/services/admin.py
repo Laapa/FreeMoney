@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -14,9 +14,6 @@ from app.models.product_pool import ProductPool
 from app.models.top_up_request import TopUpRequest
 from app.models.user import User
 from app.services.admin_exports import (
-    can_delete_category,
-    can_delete_offer,
-    export_category_snapshot,
     export_category_with_offers_snapshot,
     export_offer_leftovers_snapshot,
     export_offer_snapshot,
@@ -122,7 +119,6 @@ def _available_direct_stock_products_query(*, offer_id: int):
         .where(
             ProductPool.offer_id == offer_id,
             ProductPool.status == ProductStatus.AVAILABLE,
-            ~exists().where(Order.product_id == ProductPool.id),
         )
         .order_by(ProductPool.id.asc())
     )
@@ -139,9 +135,30 @@ def _direct_stock_available_count(db: Session, *, offer_id: int) -> int:
         select(func.count(ProductPool.id)).where(
             ProductPool.offer_id == offer_id,
             ProductPool.status == ProductStatus.AVAILABLE,
-            ~exists().where(Order.product_id == ProductPool.id),
         )
     ) or 0
+
+
+def _try_delete_entity(db: Session, entity: object) -> tuple[bool, str | None]:
+    try:
+        with db.begin_nested():
+            db.delete(entity)
+            db.flush()
+        return True, None
+    except IntegrityError as exc:
+        return False, str(exc.orig) if exc.orig else str(exc)
+
+
+def _delete_products_safely(db: Session, products: list[ProductPool]) -> tuple[int, int]:
+    deleted = 0
+    failed = 0
+    for product in products:
+        ok, _ = _try_delete_entity(db, product)
+        if ok:
+            deleted += 1
+        else:
+            failed += 1
+    return deleted, failed
 
 
 def export_offer(
@@ -179,34 +196,51 @@ def delete_offer(db: Session, *, offer_id: int, count: int | str | None = None) 
         all_available = db.scalars(_available_direct_stock_products_query(offer_id=offer.id)).all()
         selected = _take_count(all_available, parsed_count)
         export_result = export_offer_leftovers_snapshot(db, offer=offer, reason="delete_offer_leftovers", leftovers=selected)
-        deleted = 0
-        for product in selected:
-            db.delete(product)
-            deleted += 1
-        offer.is_active = False
+        deleted, failed = _delete_products_safely(db, selected)
+        remaining_available = _direct_stock_available_count(db, offer_id=offer.id)
+
+        hard_deleted = False
+        hidden_fallback = False
+        fallback_reason: str | None = None
+        if remaining_available == 0:
+            hard_deleted, fallback_reason = _try_delete_entity(db, offer)
+            if not hard_deleted:
+                offer.is_active = False
+                hidden_fallback = True
+
         db.commit()
+        if hard_deleted:
+            return (
+                True,
+                f"Оффер физически удален. Доступно: {len(all_available)}, удалено остатков: {deleted}, "
+                f"не удалось удалить: {failed}. Snapshot: {export_result.file_path}",
+            )
+        if hidden_fallback:
+            return (
+                True,
+                "Оффер выведен из меню, история сохранена. "
+                f"Доступно: {len(all_available)}, удалено остатков: {deleted}, не удалось удалить: {failed}. "
+                f"Причина fallback: {fallback_reason}. Snapshot: {export_result.file_path}",
+            )
         return (
             True,
-            "Оффер скрыт из каталога; direct_stock остатки обработаны. "
-            f"Доступно: {len(all_available)}, удалено: {deleted}, не обработано: {max(len(all_available) - deleted, 0)}. "
+            "Остатки direct_stock обработаны. "
+            f"Доступно: {len(all_available)}, удалено остатков: {deleted}, не удалось удалить: {failed}, "
+            f"осталось доступных: {remaining_available}. "
             f"Snapshot: {export_result.file_path}",
         )
 
     export_result = export_offer_snapshot(db, offer=offer, reason="delete_offer")
-    allowed, reason = can_delete_offer(db, offer_id=offer_id)
-    if allowed:
-        try:
-            db.delete(offer)
-            db.commit()
-            return True, f"Товар удален. Snapshot: {export_result.file_path}"
-        except IntegrityError:
-            db.rollback()
+    hard_deleted, fallback_reason = _try_delete_entity(db, offer)
+    if hard_deleted:
+        db.commit()
+        return True, f"Товар физически удален. Snapshot: {export_result.file_path}"
     offer.is_active = False
     db.commit()
     return (
         True,
         "Товар выведен из активного меню, исторические записи сохранены. "
-        f"Snapshot: {export_result.file_path}"
+        f"Причина fallback: {fallback_reason}. Snapshot: {export_result.file_path}"
     )
 
 
@@ -224,32 +258,43 @@ def delete_category(db: Session, *, category_id: int) -> tuple[bool, str]:
         return False, "Категория не найдена"
     export_result = export_category_with_offers_snapshot(db, category=category, reason="delete_category")
     offers = list_offers_for_admin(db, category_id=category.id)
+    processed = 0
     removed_leftovers = 0
+    offer_deleted_ids: list[int] = []
+    offer_hidden_ids: list[int] = []
+
     for offer in offers:
+        processed += 1
         if offer.fulfillment_type == FulfillmentType.DIRECT_STOCK:
             leftovers = db.scalars(_available_direct_stock_products_query(offer_id=offer.id)).all()
-            for product in leftovers:
-                db.delete(product)
-                removed_leftovers += 1
+            deleted, _ = _delete_products_safely(db, leftovers)
+            removed_leftovers += deleted
+        hard_deleted, _ = _try_delete_entity(db, offer)
+        if hard_deleted:
+            offer_deleted_ids.append(offer.id)
+            continue
         offer.is_active = False
+        offer_hidden_ids.append(offer.id)
 
-    allowed, _ = can_delete_category(db, category_id=category_id)
-    if allowed:
-        try:
-            db.delete(category)
-            db.commit()
-            return True, f"Категория удалена. Snapshot: {export_result.file_path}"
-        except IntegrityError:
-            db.rollback()
-            category = db.get(Category, category_id)
-            if category is None:
-                return True, f"Категория удалена. Snapshot: {export_result.file_path}"
+    hard_deleted_category, fallback_reason = _try_delete_entity(db, category)
+    if hard_deleted_category:
+        db.commit()
+        return (
+            True,
+            "Категория физически удалена. "
+            f"Офферов обработано: {processed}, офферы удалены: {offer_deleted_ids or '-'}, "
+            f"офферы скрыты: {offer_hidden_ids or '-'}, удалено direct_stock остатков: {removed_leftovers}. "
+            f"Snapshot: {export_result.file_path}",
+        )
+
     category.is_active = False
     db.commit()
     return (
         True,
         "Категория и офферы выведены из активного меню, история сохранена. "
-        f"Удалено direct_stock остатков: {removed_leftovers}. Snapshot: {export_result.file_path}"
+        f"Офферов обработано: {processed}, офферы удалены: {offer_deleted_ids or '-'}, "
+        f"офферы скрыты: {offer_hidden_ids or '-'}, удалено direct_stock остатков: {removed_leftovers}. "
+        f"Причина fallback: {fallback_reason}. Snapshot: {export_result.file_path}"
     )
 
 

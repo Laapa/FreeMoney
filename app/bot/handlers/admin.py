@@ -14,7 +14,7 @@ from app.bot.keyboards.main_menu import main_menu_keyboard
 from app.bot.money import format_money
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.models.enums import FulfillmentType, OrderStatus, TopUpMethod, TopUpStatus
+from app.models.enums import FulfillmentType, Language, OrderStatus, TopUpMethod, TopUpStatus
 from app.models.offer import Offer
 from app.models.order import Order
 from app.models.top_up_request import TopUpRequest
@@ -22,6 +22,7 @@ from app.services import admin as admin_service
 from app.services.fulfillment import refresh_activation_task_status
 from app.services.top_up_verification import verify_bybit_uid_top_up, verify_crypto_txid_top_up
 from app.services.top_up_payments import check_crypto_pay_top_up
+from app.services.users import get_user_by_telegram_id
 
 router = Router(name="admin")
 
@@ -38,6 +39,21 @@ def _is_admin(telegram_id: int) -> bool:
     return admin_service.is_admin_telegram_id(telegram_id, get_settings().admin_telegram_ids)
 
 
+def _safe_parse_int(raw: str, *, field_name: str) -> tuple[int | None, str | None]:
+    try:
+        return int(raw), None
+    except (TypeError, ValueError):
+        return None, f"{field_name} должен быть числом"
+
+
+def _exit_language_for_user(telegram_id: int) -> Language:
+    with SessionLocal() as db:
+        user = get_user_by_telegram_id(db, telegram_id)
+    if user is not None:
+        return user.language
+    return getattr(get_settings(), "default_language", Language.RU)
+
+
 @router.message(Command("admin"))
 async def admin_command(message: Message) -> None:
     if message.from_user is None or not _is_admin(message.from_user.id):
@@ -52,7 +68,8 @@ async def admin_exit(callback: CallbackQuery, state: FSMContext) -> None:
         return
     await state.clear()
     if callback.message is not None:
-        await callback.message.answer("Вы вышли из админки", reply_markup=main_menu_keyboard(get_settings().default_language, is_admin=True))
+        language = _exit_language_for_user(callback.from_user.id)
+        await callback.message.answer("Вы вышли из админки", reply_markup=main_menu_keyboard(language, is_admin=True))
     await callback.answer()
 
 
@@ -95,17 +112,29 @@ async def admin_categories_input(message: Message) -> None:
             return
         if message.text.startswith("TOGGLE_CAT|"):
             _, cid, mode = message.text.split("|", maxsplit=2)
-            category = admin_service.update_category_activity(db, category_id=int(cid), is_active=mode == "on")
+            category_id, error = _safe_parse_int(cid, field_name="category_id")
+            if category_id is None:
+                await message.answer(error)
+                return
+            category = admin_service.update_category_activity(db, category_id=category_id, is_active=mode == "on")
             await message.answer("Обновлено" if category else "Категория не найдена")
             return
         if message.text.startswith("EXPORT_CAT|"):
             _, cid = message.text.split("|", maxsplit=1)
-            category, export_path = admin_service.export_category(db, category_id=int(cid), reason="manual_export")
+            category_id, error = _safe_parse_int(cid, field_name="category_id")
+            if category_id is None:
+                await message.answer(error)
+                return
+            category, export_path = admin_service.export_category(db, category_id=category_id, reason="manual_export")
             await message.answer(f"Экспорт сохранен: {export_path}" if category else "Категория не найдена")
             return
         if message.text.startswith("DELETE_CAT|"):
             _, cid = message.text.split("|", maxsplit=1)
-            ok, details = admin_service.delete_category(db, category_id=int(cid))
+            category_id, error = _safe_parse_int(cid, field_name="category_id")
+            if category_id is None:
+                await message.answer(error)
+                return
+            ok, details = admin_service.delete_category(db, category_id=category_id)
             await message.answer(details if ok else f"Удаление запрещено: {details}")
             return
 
@@ -160,9 +189,13 @@ async def admin_offer_input(message: Message) -> None:
                 except (ValueError, InvalidOperation):
                     errors.append(f"Строка {idx}: неверные fulfillment_type/price")
                     continue
+                parsed_category_id, category_error = _safe_parse_int(category_id, field_name="category_id")
+                if parsed_category_id is None:
+                    errors.append(f"Строка {idx}: {category_error}")
+                    continue
                 offer = admin_service.create_offer(
                     db,
-                    category_id=int(category_id),
+                    category_id=parsed_category_id,
                     name_ru=name_ru,
                     name_en=name_en,
                     description_ru=desc[0] if desc else None,
@@ -195,17 +228,29 @@ async def admin_offer_input(message: Message) -> None:
             return
         if message.text.startswith("TOGGLE_OFFER|"):
             _, oid, mode = message.text.split("|", maxsplit=2)
-            offer = admin_service.update_offer_activity(db, offer_id=int(oid), is_active=mode == "on")
+            offer_id, error = _safe_parse_int(oid, field_name="offer_id")
+            if offer_id is None:
+                await message.answer(error)
+                return
+            offer = admin_service.update_offer_activity(db, offer_id=offer_id, is_active=mode == "on")
             await message.answer("Обновлено" if offer else "Товар не найден")
             return
         if message.text.startswith("EXPORT_OFFER|"):
             _, oid = message.text.split("|", maxsplit=1)
-            offer, export_path = admin_service.export_offer(db, offer_id=int(oid), reason="manual_export")
+            offer_id, error = _safe_parse_int(oid, field_name="offer_id")
+            if offer_id is None:
+                await message.answer(error)
+                return
+            offer, export_path = admin_service.export_offer(db, offer_id=offer_id, reason="manual_export")
             await message.answer(f"Экспорт сохранен: {export_path}" if offer else "Товар не найден")
             return
         if message.text.startswith("DELETE_OFFER|"):
             _, oid = message.text.split("|", maxsplit=1)
-            ok, details = admin_service.delete_offer(db, offer_id=int(oid))
+            offer_id, error = _safe_parse_int(oid, field_name="offer_id")
+            if offer_id is None:
+                await message.answer(error)
+                return
+            ok, details = admin_service.delete_offer(db, offer_id=offer_id)
             await message.answer(details if ok else f"Удаление запрещено: {details}")
             return
         if message.text.startswith("BALANCE|"):

@@ -80,8 +80,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Price: {price}",
     },
     "orders_item_line": {
-        Language.RU: "🛍 Товар: {item}",
-        Language.EN: "🛍 Item: {item}",
+        Language.RU: "Товар: {item}",
+        Language.EN: "Item: {item}",
     },
     "orders_details_delivered_at": {
         Language.RU: "Доставлен: {delivered_at}",
@@ -96,8 +96,8 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.EN: "Pay with balance",
     },
     "orders_action_top_up": {
-        Language.RU: "💳 Пополнить",
-        Language.EN: "💳 Top Up",
+        Language.RU: "Пополнить",
+        Language.EN: "Top Up",
     },
     "orders_payment_insufficient_balance": {
         Language.RU: "Недостаточно средств для оплаты заказа.\nТекущий баланс: {balance}\nНажмите «Пополнить», затем повторите оплату.",
@@ -129,7 +129,7 @@ TEXTS: dict[str, dict[Language, str]] = {
     "orders_status_delivered": {Language.RU: "Доставлен", Language.EN: "Delivered"},
     "orders_status_canceled": {Language.RU: "Отменен", Language.EN: "Canceled"},
     "orders_action_check_payment": {Language.RU: "Проверить оплату", Language.EN: "Check payment"},
-    "orders_action_open_payment": {Language.RU: "💳 Перейти к оплате", Language.EN: "💳 Proceed to payment"},
+    "orders_action_open_payment": {Language.RU: "Перейти к оплате", Language.EN: "Proceed to payment"},
     "orders_action_open_activation": {Language.RU: "Открыть активатор", Language.EN: "Open activation page"},
     "orders_action_cancel_payment": {Language.RU: "Отменить оплату", Language.EN: "Cancel payment"},
     "orders_payment_screen": {

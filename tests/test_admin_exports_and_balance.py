@@ -118,14 +118,12 @@ def test_direct_stock_delete_and_export_count(monkeypatch, tmp_path: Path) -> No
     ok, details = admin_service.delete_offer(db, offer_id=offer.id, count=2)
     assert ok is True
     assert "удалено остатков: 2" in details
-    left = db.query(ProductPool).filter(ProductPool.offer_id == offer.id, ProductPool.status == ProductStatus.AVAILABLE).count()
-    assert left == 3
+    assert admin_service.available_payload_count(db, offer_id=offer.id) == 3
 
     ok_all, details_all = admin_service.delete_offer(db, offer_id=offer.id, count="all")
     assert ok_all is True
     assert "удалено остатков: 3" in details_all
-    left_after_all = db.query(ProductPool).filter(ProductPool.offer_id == offer.id).count()
-    assert left_after_all == 0
+    assert admin_service.available_payload_count(db, offer_id=offer.id) == 0
 
 
 def test_returned_to_stock_item_is_counted_exported_and_deleted(monkeypatch, tmp_path: Path) -> None:
@@ -176,7 +174,11 @@ def test_returned_to_stock_item_is_counted_exported_and_deleted(monkeypatch, tmp
 
     ok, details = admin_service.delete_offer(db, offer_id=offer.id, count=1)
     assert ok is True
-    assert "не удалось удалить: 1" in details
+    assert "архивировано: 1" in details
+    assert "не удалось обработать: 0" in details
+    assert admin_service.available_payload_count(db, offer_id=offer.id) == 0
+    db.refresh(product)
+    assert product.removed_from_pool is True
 
 
 def test_returned_to_stock_count_all(monkeypatch, tmp_path: Path) -> None:
@@ -209,6 +211,39 @@ def test_returned_to_stock_count_all(monkeypatch, tmp_path: Path) -> None:
     ok, details = admin_service.delete_offer(db, offer_id=offer.id, count="all")
     assert ok is True
     assert "удалено остатков: 2" in details
+    assert admin_service.available_payload_count(db, offer_id=offer.id) == 0
+
+
+def test_export_and_delete_ignore_archived_rows(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(admin_exports, "_project_root", lambda: tmp_path)
+    db = make_session()
+    category = admin_service.create_category(db, name_ru="Cat", name_en="Cat", description_ru=None, description_en=None)
+    offer = admin_service.create_offer(
+        db,
+        category_id=category.id,
+        name_ru="Offer",
+        name_en="Offer",
+        description_ru=None,
+        description_en=None,
+        fulfillment_type=FulfillmentType.DIRECT_STOCK,
+        base_price=Decimal("10.00"),
+    )
+    assert offer is not None
+    db.add_all(
+        [
+            ProductPool(offer_id=offer.id, payload="active", status=ProductStatus.AVAILABLE, removed_from_pool=False),
+            ProductPool(offer_id=offer.id, payload="archived", status=ProductStatus.AVAILABLE, removed_from_pool=True),
+        ]
+    )
+    db.commit()
+
+    assert admin_service.available_payload_count(db, offer_id=offer.id) == 1
+    _, _, summary = admin_service.export_offer(db, offer_id=offer.id, reason="only-active", count="all")
+    assert summary["available_found"] == 1
+
+    ok, details = admin_service.delete_offer(db, offer_id=offer.id, count="all")
+    assert ok is True
+    assert "удалено остатков: 1" in details
 
 
 def test_delete_offer_hard_deletes_when_safe() -> None:

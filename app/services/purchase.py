@@ -57,7 +57,7 @@ def reserve_product_for_user(
 
     query = (
         select(ProductPool.id)
-        .where(ProductPool.offer_id == offer_id, ProductPool.status == ProductStatus.AVAILABLE)
+        .where(ProductPool.offer_id == offer_id, ProductPool.status == ProductStatus.AVAILABLE, ProductPool.removed_from_pool.is_(False))
         .order_by(ProductPool.id)
         .limit(max_attempts)
     )
@@ -73,7 +73,7 @@ def reserve_product_for_user(
     for candidate_id in candidate_ids:
         update_result = db.execute(
             update(ProductPool)
-            .where(ProductPool.id == candidate_id, ProductPool.status == ProductStatus.AVAILABLE)
+            .where(ProductPool.id == candidate_id, ProductPool.status == ProductStatus.AVAILABLE, ProductPool.removed_from_pool.is_(False))
             .values(status=ProductStatus.RESERVED)
         )
         if update_result.rowcount == 1:

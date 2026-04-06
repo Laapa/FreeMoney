@@ -119,6 +119,7 @@ def _available_direct_stock_products_query(*, offer_id: int):
         .where(
             ProductPool.offer_id == offer_id,
             ProductPool.status == ProductStatus.AVAILABLE,
+            ProductPool.removed_from_pool.is_(False),
         )
         .order_by(ProductPool.id.asc())
     )
@@ -135,6 +136,7 @@ def _direct_stock_available_count(db: Session, *, offer_id: int) -> int:
         select(func.count(ProductPool.id)).where(
             ProductPool.offer_id == offer_id,
             ProductPool.status == ProductStatus.AVAILABLE,
+            ProductPool.removed_from_pool.is_(False),
         )
     ) or 0
 
@@ -149,16 +151,19 @@ def _try_delete_entity(db: Session, entity: object) -> tuple[bool, str | None]:
         return False, str(exc.orig) if exc.orig else str(exc)
 
 
-def _delete_products_safely(db: Session, products: list[ProductPool]) -> tuple[int, int]:
+def _remove_products_from_pool(db: Session, products: list[ProductPool]) -> tuple[int, int, int]:
     deleted = 0
+    archived = 0
     failed = 0
     for product in products:
         ok, _ = _try_delete_entity(db, product)
         if ok:
             deleted += 1
-        else:
-            failed += 1
-    return deleted, failed
+            continue
+        product.removed_from_pool = True
+        product.status = ProductStatus.AVAILABLE
+        archived += 1
+    return deleted, archived, failed
 
 
 def export_offer(
@@ -196,7 +201,7 @@ def delete_offer(db: Session, *, offer_id: int, count: int | str | None = None) 
         all_available = db.scalars(_available_direct_stock_products_query(offer_id=offer.id)).all()
         selected = _take_count(all_available, parsed_count)
         export_result = export_offer_leftovers_snapshot(db, offer=offer, reason="delete_offer_leftovers", leftovers=selected)
-        deleted, failed = _delete_products_safely(db, selected)
+        deleted, archived, failed = _remove_products_from_pool(db, selected)
         remaining_available = _direct_stock_available_count(db, offer_id=offer.id)
 
         hard_deleted = False
@@ -213,19 +218,19 @@ def delete_offer(db: Session, *, offer_id: int, count: int | str | None = None) 
             return (
                 True,
                 f"Оффер физически удален. Доступно: {len(all_available)}, удалено остатков: {deleted}, "
-                f"не удалось удалить: {failed}. Snapshot: {export_result.file_path}",
+                f"архивировано: {archived}, не удалось обработать: {failed}. Snapshot: {export_result.file_path}",
             )
         if hidden_fallback:
             return (
                 True,
                 "Оффер выведен из меню, история сохранена. "
-                f"Доступно: {len(all_available)}, удалено остатков: {deleted}, не удалось удалить: {failed}. "
+                f"Доступно: {len(all_available)}, удалено остатков: {deleted}, архивировано: {archived}, не удалось обработать: {failed}. "
                 f"Причина fallback: {fallback_reason}. Snapshot: {export_result.file_path}",
             )
         return (
             True,
             "Остатки direct_stock обработаны. "
-            f"Доступно: {len(all_available)}, удалено остатков: {deleted}, не удалось удалить: {failed}, "
+            f"Доступно: {len(all_available)}, удалено остатков: {deleted}, архивировано: {archived}, не удалось обработать: {failed}, "
             f"осталось доступных: {remaining_available}. "
             f"Snapshot: {export_result.file_path}",
         )
@@ -267,8 +272,8 @@ def delete_category(db: Session, *, category_id: int) -> tuple[bool, str]:
         processed += 1
         if offer.fulfillment_type == FulfillmentType.DIRECT_STOCK:
             leftovers = db.scalars(_available_direct_stock_products_query(offer_id=offer.id)).all()
-            deleted, _ = _delete_products_safely(db, leftovers)
-            removed_leftovers += deleted
+            deleted, archived, _ = _remove_products_from_pool(db, leftovers)
+            removed_leftovers += deleted + archived
         hard_deleted, _ = _try_delete_entity(db, offer)
         if hard_deleted:
             offer_deleted_ids.append(offer.id)
@@ -322,7 +327,13 @@ def add_direct_stock_payload_batch(db: Session, *, rows: list[tuple[int, str]]) 
 
 
 def available_payload_count(db: Session, *, offer_id: int) -> int:
-    return db.scalar(select(func.count(ProductPool.id)).where(ProductPool.offer_id == offer_id, ProductPool.status == ProductStatus.AVAILABLE)) or 0
+    return db.scalar(
+        select(func.count(ProductPool.id)).where(
+            ProductPool.offer_id == offer_id,
+            ProductPool.status == ProductStatus.AVAILABLE,
+            ProductPool.removed_from_pool.is_(False),
+        )
+    ) or 0
 
 
 def list_recent_orders(db: Session, *, limit: int = 15) -> list[Order]:

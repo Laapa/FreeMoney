@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -14,6 +14,7 @@ class ProductPool(Base):
     offer_id: Mapped[int] = mapped_column(ForeignKey("offers.id"), nullable=False, index=True)
     payload: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[ProductStatus] = mapped_column(Enum(ProductStatus), default=ProductStatus.AVAILABLE, nullable=False)
+    removed_from_pool: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     offer = relationship("Offer", back_populates="products")

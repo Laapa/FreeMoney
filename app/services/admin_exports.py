@@ -92,6 +92,7 @@ def _direct_stock_leftovers_query(*, offer_id: int):
         .where(
             ProductPool.offer_id == offer_id,
             ProductPool.status == ProductStatus.AVAILABLE,
+            ProductPool.removed_from_pool.is_(False),
         )
         .order_by(ProductPool.id.asc())
     )

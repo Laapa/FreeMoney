@@ -16,6 +16,7 @@ from app.services.purchase import release_expired_reservations
 class CategoryView:
     id: int
     title: str
+    description: str | None = None
 
 
 @dataclass(slots=True)
@@ -38,6 +39,20 @@ class ProductCard:
 
 def _category_title(category: Category, language: Language) -> str:
     return category.name_ru if language == Language.RU else category.name_en
+
+
+def _normalized_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _category_description(category: Category, language: Language) -> str | None:
+    primary = _normalized_text(category.description_ru if language == Language.RU else category.description_en)
+    if primary:
+        return primary
+    return _normalized_text(category.description_en if language == Language.RU else category.description_ru)
 
 
 def _offer_title(offer: Offer, language: Language) -> str:
@@ -92,7 +107,11 @@ def get_category_view(db: Session, *, language: Language, category_id: int) -> C
     category = db.get(Category, category_id)
     if category is None or not category.is_active:
         return None
-    return CategoryView(id=category.id, title=_category_title(category, language))
+    return CategoryView(
+        id=category.id,
+        title=_category_title(category, language),
+        description=_category_description(category, language),
+    )
 
 
 def list_offers(db: Session, *, user_id: int, language: Language, category_id: int) -> list[OfferView]:
